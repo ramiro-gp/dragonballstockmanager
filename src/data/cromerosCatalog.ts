@@ -121,6 +121,13 @@ export function getKindOptions(cardNumber: string): CardKind[] {
   return getVariantRule(cardNumber)?.kinds ?? ["comun"];
 }
 
+export function getDefaultKind(cardNumber: string): CardKind {
+  const options = getKindOptions(cardNumber);
+  if (options.includes("holo")) return "holo";
+  if (options.includes("fluor")) return "fluor";
+  return "comun";
+}
+
 export function getColorOptions(cardNumber: string, kind: CardKind) {
   if (kind === "comun") return ["Base"];
   const rule = getVariantRule(cardNumber);

@@ -9,6 +9,8 @@ import { Pagination } from "../components/shared/Pagination";
 import { CardResult } from "../components/cards/CardResult";
 import { ProductCard } from "../components/cards/ProductCard";
 
+const colorVariantOptions = ["Dorado", "Plateado", "Dorado opaco", "Plateado opaco", "Rojo", "Azul", "Verde", "Violeta", "Amarillo", "Bronce", "Patrones", "Arcoiris", "Tornasolado", "Naranja", "Turquesa", "Celeste", "Rosa", "Fluor"];
+
 export function PublicStockPage({
   seller,
   stock,
@@ -27,9 +29,9 @@ export function PublicStockPage({
   navigate: (route: Route) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [kinds, setKinds] = useState<string[]>([]);
   const [variants, setVariants] = useState<string[]>([]);
   const [expansions, setExpansions] = useState<string[]>([]);
+  const [collection, setCollection] = useState<"cromeros" | "leyenda">("cromeros");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [cardPage, setCardPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
@@ -37,10 +39,9 @@ export function PublicStockPage({
 
   const results = stock.filter((item) => {
     const byNumber = numbers.length ? numbers.includes(item.number.toUpperCase()) : true;
-    const byKind = !kinds.length || kinds.includes(item.kind);
     const byVariant = !variants.length || variants.map((value) => value.toLowerCase()).includes(item.variant.toLowerCase());
     const byExpansion = !expansions.length || expansions.some((selected) => item.expansion.toLowerCase().includes(selected.toLowerCase()));
-    return byNumber && byKind && byVariant && byExpansion && item.quantity > 0;
+    return byNumber && byVariant && byExpansion && item.quantity > 0;
   });
 
   const grouped = Object.values(
@@ -102,6 +103,13 @@ export function PublicStockPage({
           <Filter size={20} />
         </div>
         <div className="search-grid">
+          <div className="filter-group">
+            <div className="filter-group-header"><span>Coleccion</span></div>
+            <div className="view-toggle collection-toggle" aria-label="Coleccion">
+              <button className={clsx(collection === "cromeros" && "active")} onClick={() => setCollection("cromeros")}>Cromeros</button>
+              <button className={clsx(collection === "leyenda" && "active")} onClick={() => setCollection("leyenda")}>Leyenda</button>
+            </div>
+          </div>
           <label className="field search-list">
             <span>Lista de faltantes</span>
             <textarea
@@ -113,22 +121,17 @@ export function PublicStockPage({
             />
           </label>
           <MultiFilter
-            title="Tipo"
-            options={SEARCH_FILTERS.kinds.filter((item) => item !== "todas")}
-            selected={kinds}
-            setSelected={(next) => { setKinds(next); setCardPage(1); }}
-          />
-          <MultiFilter
-            title="Variante"
-            options={SEARCH_FILTERS.variants.filter((item) => item !== "todas")}
-            selected={variants}
-            setSelected={(next) => { setVariants(next); setCardPage(1); }}
-          />
-          <MultiFilter
-            title="Expansión"
+            title="Filtrar por expansion"
             options={SEARCH_FILTERS.expansions.filter((item) => item !== "todas")}
             selected={expansions}
             setSelected={(next) => { setExpansions(next); setCardPage(1); }}
+          />
+          <MultiFilter
+            title="Filtrar por color variante"
+            options={colorVariantOptions}
+            selected={variants}
+            setSelected={(next) => { setVariants(next); setCardPage(1); }}
+            showSwatches
           />
         </div>
         <div className="search-actions">
@@ -163,8 +166,8 @@ export function PublicStockPage({
         <div className="card-table">
           <div className="card-table-row header">
             <span>N° carta</span>
-            <span>Tipo</span>
             <span>Variante</span>
+            <span>Color variante</span>
             <span>Expansión</span>
             <span>Precio</span>
             <span>Cantidad</span>
@@ -221,11 +224,13 @@ function MultiFilter({
   options,
   selected,
   setSelected,
+  showSwatches = false,
 }: {
   title: string;
   options: string[];
   selected: string[];
   setSelected: (next: string[]) => void;
+  showSwatches?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -273,6 +278,7 @@ function MultiFilter({
             return (
               <button key={option} type="button" className={clsx("multi-select-option", active && "active")} onClick={() => toggle(option)}>
                 <span className="multi-select-check">{active && <Check size={14} />}</span>
+                {showSwatches && <span className="variant-swatch" style={{ background: swatchBackground(option) }} />}
                 <span>{option}</span>
               </button>
             );
@@ -281,4 +287,27 @@ function MultiFilter({
       )}
     </div>
   );
+}
+
+function swatchBackground(option: string) {
+  const value = option.toLowerCase();
+  if (value.includes("dorado") && !value.includes("opaco")) return "linear-gradient(135deg, #fff2a6, #c98b16, #fff4b8)";
+  if (value.includes("plateado") && !value.includes("opaco")) return "linear-gradient(135deg, #ffffff, #a8adb4, #f3f4f6)";
+  if (value.includes("dorado opaco")) return "#b88a2d";
+  if (value.includes("plateado opaco")) return "#9ca3af";
+  if (value.includes("rojo")) return "#dc2626";
+  if (value.includes("azul")) return "#2563eb";
+  if (value.includes("verde")) return "#16a34a";
+  if (value.includes("violeta")) return "#7c3aed";
+  if (value.includes("amarillo")) return "#facc15";
+  if (value.includes("bronce")) return "#92400e";
+  if (value.includes("naranja")) return "#f97316";
+  if (value.includes("turquesa")) return "#14b8a6";
+  if (value.includes("celeste")) return "#38bdf8";
+  if (value.includes("rosa")) return "#ec4899";
+  if (value.includes("arcoiris")) return "linear-gradient(135deg, #ef4444, #facc15, #22c55e, #3b82f6, #8b5cf6)";
+  if (value.includes("tornasolado")) return "linear-gradient(135deg, #a7f3d0, #bfdbfe, #fbcfe8)";
+  if (value.includes("patrones")) return "repeating-linear-gradient(45deg, #111827 0 4px, #f59e0b 4px 8px)";
+  if (value.includes("fluor")) return "#a3e635";
+  return "var(--soft)";
 }

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Layers3, Package, PackagePlus } from "lucide-react";
-import { getColorOptions, getCromerosExpansion, getKindOptions, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
+import { getColorOptions, getCromerosExpansion, getDefaultKind, getKindOptions, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product } from "../lib/types";
-import { groupNumbers, parseCardList } from "../lib/helpers";
+import { groupNumbers, parseCardList, parseRange } from "../lib/helpers";
 
 const defaultImageUrl = "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80";
+const priceStorageKey = "dbsm.publishPrices";
 
 export function StockManagerPage({
   sellerId,
@@ -21,8 +22,12 @@ export function StockManagerPage({
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
 }) {
   const [publishMode, setPublishMode] = useState<"cards" | "products">("cards");
+  const [loadMode, setLoadMode] = useState<"list" | "range">("list");
   const [cardList, setCardList] = useState("1 1 13 18 19 880 881 881 881 881 881 880 15 68 1275 951 855 855 855");
-  const [defaultPrice, setDefaultPrice] = useState(300);
+  const [from, setFrom] = useState("1");
+  const [to, setTo] = useState("12");
+  const [except, setExcept] = useState("4, 7");
+  const [prices, setPrices] = useState<Record<CardKind, number>>(() => readPublishPrices());
   const [variantDrafts, setVariantDrafts] = useState<Record<string, VariantDraft>>({});
   const [publishedMessage, setPublishedMessage] = useState("");
   const [productName, setProductName] = useState("");
@@ -32,7 +37,7 @@ export function StockManagerPage({
   const [productPrice, setProductPrice] = useState(0);
   const [productImageUrl, setProductImageUrl] = useState("");
 
-  const parsedCards = useMemo(() => parseCardList(cardList), [cardList]);
+  const parsedCards = useMemo(() => loadMode === "list" ? parseCardList(cardList) : parseRange(from, to, except), [cardList, except, from, loadMode, to]);
   const variantRows = useMemo(() => {
     const occurrences = new Map<string, number>();
     return parsedCards.flatMap((number) => {
@@ -49,7 +54,7 @@ export function StockManagerPage({
       const next: Record<string, VariantDraft> = {};
       variantRows.forEach(({ number, key }) => {
         const existing = current[key];
-        const kind = existing?.kind ?? getKindOptions(number)[0] ?? "comun";
+        const kind = existing?.kind ?? getDefaultKind(number);
         const colors = getColorOptions(number, kind);
         next[key] = {
           key,
@@ -57,12 +62,16 @@ export function StockManagerPage({
           kind,
           variant: existing && colors.includes(existing.variant) ? existing.variant : colors[0] ?? "Base",
           quantity: existing?.quantity ?? 1,
-          price: existing?.price ?? defaultPrice,
+          price: existing?.price ?? prices[kind],
         };
       });
       return next;
     });
-  }, [defaultPrice, variantRows]);
+  }, [prices, variantRows]);
+
+  useEffect(() => {
+    writePublishPrices(prices);
+  }, [prices]);
 
   const variantDraftList = variantRows.map(({ key }) => variantDrafts[key]).filter(Boolean);
   const totalCommonQuantity = Object.values(commonGroups).reduce((sum, quantity) => sum + quantity, 0);
@@ -97,7 +106,7 @@ export function StockManagerPage({
         quantity,
         kind: "comun" as CardKind,
         variant: "Base",
-        price: defaultPrice,
+        price: prices.comun,
       })),
       ...variantDraftList.filter((row) => row.quantity > 0),
     ];
@@ -188,25 +197,42 @@ export function StockManagerPage({
         <div className="publish-wizard-grid">
           <section className="tool-surface h-fit">
             <p className="eyebrow">Paso 1</p>
-            <h2 className="panel-title">Pegá sólo números</h2>
+            <h2 className="panel-title">{loadMode === "list" ? "Pegá sólo números" : "Elegí un rango"}</h2>
             <p className="mt-2 text-sm text-[var(--muted)]">Las cartas comunes se agrupan solas. Si una carta puede tener variante, aparece en la tabla para completar.</p>
             <div className="mt-4 grid gap-3">
-              <label className="field">
-                <span>Lista de cartas</span>
-                <textarea rows={8} value={cardList} onChange={(event) => setCardList(event.target.value)} />
-              </label>
-              <label className="field">
-                <span>Precio para comunes</span>
-                <input type="number" min={0} value={defaultPrice} onChange={(event) => setDefaultPrice(Math.max(0, Number(event.target.value)))} />
-              </label>
-              <div className="assistant-summary">
-                <strong>Detectado</strong>
-                <span>{totalCommonQuantity} comunes listas para publicar.</span>
-                <span>{variantRows.length} filas necesitan variante.</span>
-                <span>{totalToPublish} cartas en total.</span>
+              <div className="segmented">
+                <button className={clsx(loadMode === "list" && "active")} onClick={() => setLoadMode("list")}>Lista</button>
+                <button className={clsx(loadMode === "range" && "active")} onClick={() => setLoadMode("range")}>Rango</button>
+              </div>
+              {loadMode === "list" ? (
+                <label className="field">
+                  <span>Lista de cartas</span>
+                  <textarea rows={8} value={cardList} onChange={(event) => setCardList(event.target.value)} />
+                </label>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="field"><span>Desde</span><input value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+                  <label className="field"><span>Hasta</span><input value={to} onChange={(event) => setTo(event.target.value)} /></label>
+                  <label className="field col-span-2"><span>Excepto</span><input value={except} onChange={(event) => setExcept(event.target.value)} /></label>
+                </div>
+              )}
+              <div className="publish-price-grid">
+                <label className="field"><span>Precio común</span><input type="number" min={0} value={prices.comun} onChange={(event) => setPrices((current) => ({ ...current, comun: Math.max(0, Number(event.target.value)) }))} /></label>
+                <label className="field"><span>Precio fluor</span><input type="number" min={0} value={prices.fluor} onChange={(event) => setPrices((current) => ({ ...current, fluor: Math.max(0, Number(event.target.value)) }))} /></label>
+                <label className="field"><span>Precio holo</span><input type="number" min={0} value={prices.holo} onChange={(event) => setPrices((current) => ({ ...current, holo: Math.max(0, Number(event.target.value)) }))} /></label>
               </div>
             </div>
           </section>
+
+          <aside className="tool-surface h-fit">
+            <p className="eyebrow">Ayuda de carga</p>
+            <div className="publish-tips">
+              <span>Lista: pegá números repetidos o separados por espacios, comas o saltos de línea.</span>
+              <span>Rango: usá Desde/Hasta y cargá excepciones si faltan cartas.</span>
+              <span>Las cartas con variantes aparecen abajo para completar color y precio.</span>
+              <span>{totalCommonQuantity} comunes, {variantRows.length} variantes, {totalToPublish} total.</span>
+            </div>
+          </aside>
 
           <section className="tool-surface">
             <div className="section-heading">
@@ -297,6 +323,24 @@ export function StockManagerPage({
       )}
     </div>
   );
+}
+
+function readPublishPrices(): Record<CardKind, number> {
+  try {
+    const raw = window.localStorage.getItem(priceStorageKey);
+    if (!raw) return { comun: 400, fluor: 700, holo: 2000 };
+    return { comun: 400, fluor: 700, holo: 2000, ...JSON.parse(raw) };
+  } catch {
+    return { comun: 400, fluor: 700, holo: 2000 };
+  }
+}
+
+function writePublishPrices(prices: Record<CardKind, number>) {
+  try {
+    window.localStorage.setItem(priceStorageKey, JSON.stringify(prices));
+  } catch {
+    // The form still works with in-memory prices if localStorage is unavailable.
+  }
 }
 
 function kindText(kind: CardKind) {

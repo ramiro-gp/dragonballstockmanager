@@ -4,7 +4,7 @@ import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
 import { cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
-import type { CardStock, CartLine, Product, Purchase, Sale, SaleStatus, Seller, Theme } from "./lib/types";
+import type { CardStock, CartLine, Product, Purchase, Sale, SaleLine, SaleStatus, Seller, Theme } from "./lib/types";
 import { CartPage } from "./pages/CartPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -158,6 +158,17 @@ export function App() {
     );
   }
 
+  function saveSaleLines(saleId: string, lines: SaleLine[]) {
+    const sale = sales.find((item) => item.id === saleId);
+    if (!sale) return;
+    const nextSale = { ...sale, lines };
+    if (sale.stockApplied) {
+      applySaleInventory(sale, -1);
+      applySaleInventory(nextSale, 1);
+    }
+    setSales((current) => current.map((item) => item.id === saleId ? nextSale : item));
+  }
+
   return (
     <div className={clsx("app", theme)}>
       <AppLayout
@@ -215,7 +226,7 @@ export function App() {
           <StockManagementPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
-          <SalesPage sales={sellerSales} changeSaleStatus={changeSaleStatus} updateSaleLine={updateSaleLine} />
+          <SalesPage sales={sellerSales} stock={sellerStock} products={sellerProducts} changeSaleStatus={changeSaleStatus} updateSaleLine={updateSaleLine} saveSaleLines={saveSaleLines} />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/panel" && <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} />}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
