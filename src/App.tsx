@@ -78,6 +78,8 @@ export function App() {
       return;
     }
 
+    void loadPublicSellersFromSupabase();
+
     supabase.auth.getSession().then(({ data }) => {
       const session = data.session;
       setIsLoggedIn(Boolean(session));
@@ -146,6 +148,25 @@ export function App() {
 
     await loadSellerInventoryFromSupabase(userId);
     await loadSellerSalesFromSupabase(userId);
+  }
+
+  async function loadPublicSellersFromSupabase() {
+    if (!supabase) return;
+
+    const { data } = await supabase
+      .from("sellers")
+      .select("id, slug, display_name, whatsapp, role, active, created_at")
+      .eq("active", true);
+
+    if (!data?.length) return;
+
+    const mapped = data.map(mapSupabaseSeller);
+    const main = mapped.find((seller) => seller.slug === "ramitagarcia") ?? mapped[0];
+    setCurrentSeller((current) => current.id === fallbackSellerId ? main : current);
+    setSellerDirectory([
+      { ...main, isMain: true },
+      ...mapped.filter((seller) => seller.id !== main.id).map((seller) => ({ ...seller, isMain: false })),
+    ]);
   }
 
   async function loadSellerInventoryFromSupabase(sellerId: string) {
@@ -231,33 +252,50 @@ export function App() {
   async function publishCardsToSupabase(rows: PublishCardInput[]) {
     if (!supabase) return null;
 
-    for (const row of rows) {
+    const aggregated = Array.from(
+      rows.reduce<Map<string, PublishCardInput>>((acc, row) => {
+        const key = [row.number, row.expansion, row.kind, row.variant].join("|");
+        const current = acc.get(key);
+        acc.set(key, current ? { ...row, quantity: current.quantity + row.quantity } : row);
+        return acc;
+      }, new Map()).values(),
+    );
+
+    const { data: existingRows } = await supabase
+      .from("stock_cards")
+      .select("id, card_number, expansion, variant_type, color_variant, quantity")
+      .eq("seller_id", currentSeller.id)
+      .eq("collection", "cromeros");
+
+    const existingByKey = new Map(
+      (existingRows ?? []).map((row) => [
+        [String(row.card_number), row.expansion, row.variant_type, row.color_variant].join("|"),
+        row,
+      ]),
+    );
+
+    const inserts = [];
+    const updates = [];
+
+    for (const row of aggregated) {
       const cardNumber = Number.parseInt(row.number, 10);
       if (!Number.isFinite(cardNumber)) continue;
+      const existing = existingByKey.get([row.number, row.expansion, row.kind, row.variant].join("|"));
 
-      const { data: existing } = await supabase
-        .from("stock_cards")
-        .select("id, quantity")
-        .eq("seller_id", currentSeller.id)
-        .eq("collection", "cromeros")
-        .eq("card_number", cardNumber)
-        .eq("expansion", row.expansion)
-        .eq("variant_type", row.kind)
-        .eq("color_variant", row.variant)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from("stock_cards")
-          .update({
-            quantity: (existing.quantity ?? 0) + row.quantity,
-            price_ars: row.price,
-          })
-          .eq("id", existing.id);
+      if (existing?.id) {
+        updates.push(
+          supabase
+            .from("stock_cards")
+            .update({
+              quantity: (existing.quantity ?? 0) + row.quantity,
+              price_ars: row.price,
+            })
+            .eq("id", existing.id),
+        );
         continue;
       }
 
-      await supabase.from("stock_cards").insert({
+      inserts.push({
         seller_id: currentSeller.id,
         collection: "cromeros",
         card_number: cardNumber,
@@ -269,6 +307,9 @@ export function App() {
         price_ars: row.price,
       });
     }
+
+    if (inserts.length) await supabase.from("stock_cards").insert(inserts);
+    await Promise.all(updates);
 
     const { data: cardRows } = await supabase
       .from("stock_cards")
@@ -405,7 +446,7 @@ export function App() {
   }
 
   async function createPendingSale(customerName: string, customerWhatsapp: string, note: string, orderNumber: string) {
-    if (!cart.length) return;
+    if (!cart.length) return false;
 
     const sale: Sale = {
       id: crypto.randomUUID(),
@@ -434,7 +475,7 @@ export function App() {
       if (!rpcError && rpcSaleId) {
         await loadSellerSalesFromSupabase(sale.sellerId);
         setCart([]);
-        return;
+        return true;
       }
 
       const { data } = await supabase
@@ -454,15 +495,19 @@ export function App() {
       if (data) {
         const saleId = data.id;
         const rows = sale.lines.map((line) => saleLineToSupabaseInsert(saleId, sale.sellerId, line));
-        if (rows.length) await supabase.from("sale_lines").insert(rows);
+        const { error: linesError } = rows.length ? await supabase.from("sale_lines").insert(rows) : { error: null };
+        if (linesError) return false;
         await loadSellerSalesFromSupabase(sale.sellerId);
         setCart([]);
-        return;
+        return true;
       }
+
+      return false;
     }
 
     setSales((current) => [sale, ...current]);
     setCart([]);
+    return true;
   }
 
   function applySaleInventorySnapshot(stockRows: CardStock[], productRows: Product[], sale: Sale, direction: 1 | -1) {
@@ -738,7 +783,7 @@ function mapSupabaseSeller(row: {
     id: row.id,
     name: row.display_name,
     slug: row.slug,
-    whatsapp: row.whatsapp ?? "",
+    whatsapp: row.whatsapp || fallbackSeller.whatsapp,
     role: row.role === "owner" ? "admin" : "seller",
     isMain: true,
     status: row.active ? "active" : "inactive",

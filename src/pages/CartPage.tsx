@@ -14,17 +14,23 @@ export function CartPage({
   setCart: React.Dispatch<React.SetStateAction<CartLine[]>>;
   sellerName: string;
   sellerWhatsapp: string;
-  createPendingSale: (customerName: string, customerWhatsapp: string, note: string, orderNumber: string) => Promise<void> | void;
+  createPendingSale: (customerName: string, customerWhatsapp: string, note: string, orderNumber: string) => Promise<boolean> | boolean;
 }) {
   const [customerName, setCustomerName] = useState("");
   const [customerWhatsapp, setCustomerWhatsapp] = useState("");
   const [note, setNote] = useState("");
+  const [saleError, setSaleError] = useState("");
   const orderNumber = useMemo(() => `DBSM-${Math.floor(2400 + Math.random() * 7000)}`, [cart.length]);
   const whatsappUrl = buildWhatsappUrl(sellerWhatsapp, sellerName, orderNumber, cart, note);
 
   async function consultByWhatsapp() {
     if (!cart.length) return;
-    await createPendingSale(customerName, customerWhatsapp, note, orderNumber);
+    setSaleError("");
+    const saved = await createPendingSale(customerName, customerWhatsapp, note, orderNumber);
+    if (saved === false) {
+      setSaleError("No pude guardar el pedido para seguimiento. Revisemos Supabase antes de enviarlo.");
+      return;
+    }
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   }
 
@@ -67,6 +73,7 @@ export function CartPage({
             <span>{formatMoney(cartTotal(cart))}</span>
           </div>
         </div>
+        {saleError && <p className="form-error mt-3">{saleError}</p>}
         <button className="primary-button mt-4 w-full" onClick={consultByWhatsapp} disabled={!cart.length}>
           <ChevronRight size={18} />
           Consultar stock por WhatsApp
