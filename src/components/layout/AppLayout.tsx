@@ -24,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.2.0";
+const APP_VERSION = "v0.3.0";
 
 export function AppLayout({
   children,
@@ -79,11 +79,11 @@ export function AppLayout({
             <Brand compact />
           </button>
           {isLoggedIn && (
-            <button className="icon-button hidden lg:inline-flex" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label="Alternar sidebar">
+            <button className="icon-button desktop-sidebar-toggle" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label="Alternar sidebar">
               {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
           )}
-          <button className="icon-button sm:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Menu">
+          <button className="icon-button mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Menu">
             {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
           {canGoBack && (
@@ -101,15 +101,15 @@ export function AppLayout({
             <span>{cartCount}</span>
             <strong className="hidden sm:inline">{formatMoney(cartTotalValue)}</strong>
           </button>
-          <button className="icon-button hidden sm:inline-flex" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Cambiar tema">
+          <button className="icon-button desktop-header-action" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Cambiar tema">
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           {isLoggedIn ? (
-            <button className="icon-button hidden sm:inline-flex" onClick={logout} aria-label="Salir">
+            <button className="icon-button desktop-header-action" onClick={logout} aria-label="Salir">
               <LogOut size={18} />
             </button>
           ) : (
-            <button className="login-button hidden sm:inline-flex" onClick={() => navigate("/login")}>
+            <button className="login-button desktop-header-action" onClick={() => navigate("/login")}>
               <LogIn size={17} />
               Login
             </button>
