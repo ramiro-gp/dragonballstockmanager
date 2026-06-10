@@ -1210,6 +1210,28 @@ textarea.input {
   grid-template-columns: 100px 1fr auto auto;
 }
 
+.manage-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+}
+
+.stock-summary-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.save-feedback {
+  width: fit-content;
+  border: 1px solid color-mix(in srgb, var(--green) 38%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  color: var(--green);
+  padding: 0.65rem 0.8rem;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
 .manage-row {
   display: grid;
   grid-template-columns: 72px 82px minmax(110px, 1fr) minmax(140px, 1fr) 84px 104px 36px;
@@ -1219,6 +1241,14 @@ textarea.input {
   border-radius: 8px;
   background: var(--soft);
   padding: 0.65rem;
+}
+
+.manage-row-header {
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .manage-row input,
@@ -1736,6 +1766,10 @@ textarea.input {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .stock-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .renew-benefits,
   .plan-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1818,6 +1852,10 @@ textarea.input {
 
   .publish-hero {
     grid-template-columns: 1fr 360px;
+  }
+
+  .manage-actions {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

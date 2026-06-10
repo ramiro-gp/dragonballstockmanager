@@ -3,6 +3,7 @@ export type Route =
   | "/login"
   | "/carrito"
   | "/carga"
+  | "/gestion-stock"
   | "/ventas"
   | "/panel"
   | "/ajustes"
@@ -10,7 +11,7 @@ export type Route =
   | "/crear-vendedor"
   | `/${string}/stock`;
 
-export const privateRoutes: Route[] = ["/carga", "/ventas", "/panel", "/ajustes", "/crear-vendedor"];
+export const privateRoutes: Route[] = ["/carga", "/gestion-stock", "/ventas", "/panel", "/ajustes", "/crear-vendedor"];
 
 export function getCurrentRoute(): Route {
   const path = window.location.pathname;
@@ -19,6 +20,7 @@ export function getCurrentRoute(): Route {
     "/login",
     "/carrito",
     "/carga",
+    "/gestion-stock",
     "/ventas",
     "/panel",
     "/ajustes",

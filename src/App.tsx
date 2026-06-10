@@ -13,6 +13,7 @@ import { PublicStockPage } from "./pages/PublicStockPage";
 import { SalesPage } from "./pages/SalesPage";
 import { SellPage } from "./pages/SellPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { StockManagementPage } from "./pages/StockManagementPage";
 import { StockManagerPage } from "./pages/StockManagerPage";
 import { SubscriptionExpiredPage } from "./pages/SubscriptionExpiredPage";
 
@@ -209,6 +210,9 @@ export function App() {
         {sellerInactive && visibleRoute !== "/login" && <SubscriptionExpiredPage sellerWhatsapp={currentSeller.whatsapp} />}
         {!sellerInactive && isLoggedIn && visibleRoute === "/carga" && (
           <StockManagerPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
+        )}
+        {!sellerInactive && isLoggedIn && visibleRoute === "/gestion-stock" && (
+          <StockManagementPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
           <SalesPage sales={sellerSales} changeSaleStatus={changeSaleStatus} updateSaleLine={updateSaleLine} />

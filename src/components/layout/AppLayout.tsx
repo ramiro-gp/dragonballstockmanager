@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   BarChart3,
   ClipboardList,
+  FilePenLine,
   Home,
   LogIn,
   LogOut,
@@ -24,7 +25,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.10.0";
+const APP_VERSION = "v0.11.0";
 
 export function AppLayout({
   children,
@@ -60,6 +61,7 @@ export function AppLayout({
     { route: "/", label: "Stock", icon: Home },
     { route: "/panel", label: "Panel", icon: BarChart3 },
     { route: "/carga", label: "Publicar", icon: PackagePlus },
+    { route: "/gestion-stock", label: "Gestionar", icon: FilePenLine },
     { route: "/ventas", label: "Historial", icon: ClipboardList },
     { route: "/ajustes", label: "Ajustes", icon: Settings },
     { route: "/crear-vendedor", label: "Crear vendedor", icon: UserPlus },

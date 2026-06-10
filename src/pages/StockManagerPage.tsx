@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { Layers3, Package, PackagePlus, Trash2 } from "lucide-react";
+import { Layers3, Package, PackagePlus } from "lucide-react";
 import type { CardKind, CardStock, Product } from "../lib/types";
-import { availableQuantity, formatMoney, groupNumbers, kindLabel, parseCardList, parseRange } from "../lib/helpers";
+import { groupNumbers, parseCardList, parseRange } from "../lib/helpers";
 import { SEARCH_FILTERS } from "../lib/limits";
 
 type AssistedRow = {
@@ -50,6 +50,7 @@ export function StockManagerPage({
   const [variantOverrides, setVariantOverrides] = useState("1110: verde\n1134: glitter\n504F: fantasma");
   const [price, setPrice] = useState(300);
   const [rowEdits, setRowEdits] = useState<Record<string, RowEdit>>({});
+  const [variantBatch, setVariantBatch] = useState("880: roja x2, verde x2, azul, fluor, comun, dorada");
   const [productName, setProductName] = useState("");
   const [productCategory, setProductCategory] = useState<Product["category"]>("lote");
   const [productDescription, setProductDescription] = useState("");
@@ -60,7 +61,14 @@ export function StockManagerPage({
   const previewNumbers = mode === "list" ? parseCardList(list) : parseRange(from, to, except);
   const grouped = groupNumbers(previewNumbers);
   const overrideMap = useMemo(() => parseVariantOverrides(variantOverrides), [variantOverrides]);
+  const batchRows = useMemo(() => parseVariantBatch(variantBatch, { expansion, kind, price }), [expansion, kind, price, variantBatch]);
   const assistedRows = useMemo(() => {
+    if (batchRows.length) {
+      return batchRows.map((baseRow) => {
+        const edit = rowEdits[baseRow.key] ?? {};
+        return { ...baseRow, ...edit };
+      });
+    }
     return Object.entries(grouped).map(([number, quantity]) => {
       const override = overrideMap.get(number.toUpperCase());
       const baseKind = override?.kind ?? kind;
@@ -80,23 +88,9 @@ export function StockManagerPage({
         return { ...baseRow, ...edit };
       });
     }).flat();
-  }, [expansion, grouped, kind, overrideMap, price, rowEdits, selectedVariants]);
+  }, [batchRows, expansion, grouped, kind, overrideMap, price, rowEdits, selectedVariants]);
 
-  function updateCardStock(itemId: string, patch: Partial<Pick<CardStock, "quantity" | "price" | "variant" | "expansion">>) {
-    setStock((current) => current.map((item) => item.id === itemId ? { ...item, ...patch } : item));
-  }
-
-  function deleteCardStock(itemId: string) {
-    setStock((current) => current.filter((item) => item.id !== itemId));
-  }
-
-  function updateProduct(productId: string, patch: Partial<Pick<Product, "quantity" | "price" | "name" | "category">>) {
-    setProducts((current) => current.map((product) => product.id === productId ? { ...product, ...patch } : product));
-  }
-
-  function deleteProduct(productId: string) {
-    setProducts((current) => current.filter((product) => product.id !== productId));
-  }
+  const publishedQuantity = assistedRows.reduce((sum, row) => sum + Math.max(0, row.quantity), 0);
 
   function loadStock() {
     const rows = assistedRows.filter((row) => row.quantity > 0);
@@ -206,7 +200,7 @@ export function StockManagerPage({
               </div>
               <label className="field"><span>Expansión</span><select value={expansion} onChange={(event) => setExpansion(event.target.value)}>{SEARCH_FILTERS.expansions.filter((item) => item !== "todas").map((option) => <option key={option} value={option}>{option}</option>)}<option value="Sin expansión">Sin expansión</option></select></label>
               <label className="field"><span>Precio default</span><input type="number" value={price} onChange={(event) => setPrice(Number(event.target.value))} /></label>
-              <button className="primary-button" onClick={loadStock} disabled={!assistedRows.length}><PackagePlus size={18} />Publicar {previewNumbers.length} cartas</button>
+              <button className="primary-button" onClick={loadStock} disabled={!assistedRows.length}><PackagePlus size={18} />Publicar {publishedQuantity} cartas</button>
             </div>
           </section>
 
@@ -237,40 +231,38 @@ export function StockManagerPage({
               ))}
               {!assistedRows.length && <p className="empty">Pegá una lista o elegí un rango para ver la previsualización.</p>}
             </div>
-            <div className="section-heading mt-6"><h3>Cartas publicadas</h3><span>{stock.length} variantes</span></div>
-            <div className="stock-table">
-              {stock.map((item) => (
-                <div key={item.id} className="manage-row">
-                  <strong>{item.number}</strong>
-                  <span>{kindLabel[item.kind]}</span>
-                  <input value={item.variant} onChange={(event) => updateCardStock(item.id, { variant: event.target.value })} />
-                  <input value={item.expansion} onChange={(event) => updateCardStock(item.id, { expansion: event.target.value })} />
-                  <input type="number" min={0} value={item.quantity} onChange={(event) => updateCardStock(item.id, { quantity: Number(event.target.value) })} />
-                  <input type="number" min={0} value={item.price} onChange={(event) => updateCardStock(item.id, { price: Number(event.target.value) })} />
-                  <button className="ghost-icon" onClick={() => deleteCardStock(item.id)} aria-label="Eliminar carta"><Trash2 size={16} /></button>
-                </div>
-              ))}
-            </div>
           </section>
 
           <section className="tool-surface xl:col-span-2">
             <p className="eyebrow">Publicación asistida</p>
-            <h3 className="panel-title">Variantes sin 500 clicks</h3>
+            <h3 className="panel-title">Detalle por variantes</h3>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              Pegás todo el lote como común/base y después sólo las excepciones. Formatos útiles:
-              1110: verde, 1134: holo glitter 1500, 504F: fantasma.
+              Para una misma carta con varias variantes, escribí una línea por número. Ejemplo:
+              880: roja x2, verde x2, azul, fluor, comun, dorada.
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-[1fr_280px]">
               <label className="field">
-                <span>Excepciones de variante</span>
-                <textarea rows={6} value={variantOverrides} onChange={(event) => setVariantOverrides(event.target.value)} />
+                <span>Variantes y cantidades</span>
+                <textarea rows={6} value={variantBatch} onChange={(event) => setVariantBatch(event.target.value)} />
               </label>
               <div className="assistant-summary">
-                <strong>Cuándo usar Cartas</strong>
-                <span>Cartas repetidas sueltas.</span>
-                <span>Faltantes individuales.</span>
-                <span>Variantes con precio propio.</span>
-                <span>No usar para cajas cerradas o colecciones completas.</span>
+                <strong>Cómo se lee</strong>
+                <span>Si no ponés cantidad, cuenta como 1.</span>
+                <span>Fluor y común se cargan como tipo propio.</span>
+                <span>Los colores usan el tipo seleccionado arriba.</span>
+                <span>Dejá este campo vacío para usar lista o rango.</span>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_280px]">
+              <label className="field">
+                <span>Ajustes puntuales opcionales</span>
+                <textarea rows={4} value={variantOverrides} onChange={(event) => setVariantOverrides(event.target.value)} />
+              </label>
+              <div className="assistant-summary">
+                <strong>Para excepciones simples</strong>
+                <span>1110: verde</span>
+                <span>1134: holo glitter 1500</span>
+                <span>504F: fantasma</span>
               </div>
             </div>
           </section>
@@ -307,24 +299,6 @@ export function StockManagerPage({
                 Publicar producto
               </button>
             </div>
-            <div className="stock-table">
-              {products.map((product) => (
-                <div key={product.id} className="manage-row product-manage-row">
-                  <select value={product.category} onChange={(event) => updateProduct(product.id, { category: event.target.value as Product["category"] })}>
-                    <option value="lote">Lote</option>
-                    <option value="caja">Caja</option>
-                    <option value="figura">Figura</option>
-                    <option value="tomo">Tomo</option>
-                    <option value="figurita">Figurita</option>
-                    <option value="otro">Otro</option>
-                  </select>
-                  <input value={product.name} onChange={(event) => updateProduct(product.id, { name: event.target.value })} />
-                  <input type="number" min={0} value={product.quantity} onChange={(event) => updateProduct(product.id, { quantity: Number(event.target.value) })} />
-                  <input type="number" min={0} value={product.price} onChange={(event) => updateProduct(product.id, { price: Number(event.target.value) })} />
-                  <button className="ghost-icon" onClick={() => deleteProduct(product.id)} aria-label="Eliminar producto"><Trash2 size={16} /></button>
-                </div>
-              ))}
-            </div>
           </section>
           <aside className="tool-surface h-fit">
             <p className="eyebrow">Cuándo usar Productos</p>
@@ -356,6 +330,32 @@ function parseVariantOverrides(input: string) {
     acc.set(number, { kind, variant, price });
     return acc;
   }, new Map());
+}
+
+function parseVariantBatch(input: string, defaults: { expansion: string; kind: CardKind; price: number }) {
+  return input.split(/\n+/).flatMap((line, lineIndex) => {
+    const match = line.trim().match(/^(\d+F?)\s*[:=-]\s*(.+)$/i);
+    if (!match) return [];
+    const number = match[1].toUpperCase();
+    return match[2].split(",").map((part, partIndex) => {
+      const rawPart = part.trim();
+      const quantityMatch = rawPart.match(/\bx\s*(\d+)\b|(\d+)\s*x\b/i);
+      const quantity = quantityMatch ? Number(quantityMatch[1] ?? quantityMatch[2]) : 1;
+      const rawVariant = quantityMatch ? rawPart.replace(quantityMatch[0], "").trim() : rawPart;
+      const lower = rawVariant.toLowerCase();
+      const parsedKind = inferKind(lower);
+      const rowKind = parsedKind ?? "holo";
+      return {
+        key: `batch-${lineIndex}-${partIndex}-${number}-${rowKind}-${rawVariant.toLowerCase()}`,
+        number,
+        quantity: Math.max(1, quantity),
+        kind: rowKind,
+        variant: cleanVariant(rawVariant, rowKind),
+        expansion: defaults.expansion,
+        price: defaults.price,
+      };
+    }).filter((row) => row.variant);
+  });
 }
 
 function inferKind(value: string): CardKind | undefined {
