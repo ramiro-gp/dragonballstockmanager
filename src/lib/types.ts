@@ -17,6 +17,14 @@ export type Seller = {
   shippingCompanies: string[];
 };
 
+export type SellerSettings = {
+  defaultCommonPrice: number;
+  defaultFluorPrice: number;
+  defaultHoloPrice: number;
+  paymentAlias: string;
+  paymentCvu: string;
+};
+
 export type Purchase = {
   id: string;
   sellerId: string;

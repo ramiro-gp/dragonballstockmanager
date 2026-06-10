@@ -5,7 +5,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
 import { cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { supabase } from "./lib/supabase";
-import type { CardStock, CartLine, Product, Purchase, Sale, SaleLine, SaleStatus, Seller, Theme } from "./lib/types";
+import type { CardStock, CartLine, Product, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerSettings, Theme } from "./lib/types";
 import { CartPage } from "./pages/CartPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -18,10 +18,19 @@ import { StockManagementPage } from "./pages/StockManagementPage";
 import { StockManagerPage } from "./pages/StockManagerPage";
 import { SubscriptionExpiredPage } from "./pages/SubscriptionExpiredPage";
 
-const currentSeller = sellers[0];
+const fallbackSeller = sellers[0];
+const fallbackSellerId = fallbackSeller.id;
+const fallbackSellerSettings: SellerSettings = {
+  defaultCommonPrice: 400,
+  defaultFluorPrice: 700,
+  defaultHoloPrice: 2000,
+  paymentAlias: "",
+  paymentCvu: "",
+};
 const STORAGE_KEYS = {
   theme: "dbsm.theme",
   sidebarCollapsed: "dbsm.sidebarCollapsed",
+  currentSeller: "dbsm.currentSeller",
   stock: "dbsm.stock",
   products: "dbsm.products",
   sales: "dbsm.sales",
@@ -34,6 +43,9 @@ export function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authLoading, setAuthLoading] = useState(Boolean(supabase));
   const [authError, setAuthError] = useState("");
+  const [currentSeller, setCurrentSeller] = useState<Seller>(() => readStorage(STORAGE_KEYS.currentSeller, fallbackSeller));
+  const [sellerDirectory, setSellerDirectory] = useState<Seller[]>(() => upsertMainSeller(sellers, readStorage(STORAGE_KEYS.currentSeller, fallbackSeller)));
+  const [sellerSettings, setSellerSettings] = useState<SellerSettings>(fallbackSellerSettings);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage(STORAGE_KEYS.sidebarCollapsed, false));
   const [stock, setStock] = useState<CardStock[]>(() => readStorage(STORAGE_KEYS.stock, initialStock));
   const [products, setProducts] = useState<Product[]>(() => readStorage(STORAGE_KEYS.products, initialProducts));
@@ -41,14 +53,14 @@ export function App() {
   const [purchases] = useState<Purchase[]>(initialPurchases);
   const [cart, setCart] = useState<CartLine[]>(() => readStorage(STORAGE_KEYS.cart, []));
 
-  const publicSeller = getPublicSeller(route, sellers) ?? currentSeller;
+  const publicSeller = getPublicSeller(route, sellerDirectory) ?? currentSeller;
   const sellerStock = stock.filter((item) => item.sellerId === currentSeller.id);
   const sellerProducts = products.filter((item) => item.sellerId === currentSeller.id);
   const publicSellerStock = stock.filter((item) => item.sellerId === publicSeller.id);
   const publicSellerProducts = products.filter((item) => item.sellerId === publicSeller.id && item.quantity > 0);
   const sellerSales = sales.filter((sale) => sale.sellerId === currentSeller.id);
   const sellerPurchases = purchases.filter((purchase) => purchase.sellerId === currentSeller.id);
-  const cartSeller = sellers.find((seller) => seller.id === cart[0]?.sellerId) ?? publicSeller;
+  const cartSeller = sellerDirectory.find((seller) => seller.id === cart[0]?.sellerId) ?? publicSeller;
   const revenue = sellerSales.filter((sale) => sale.status === "confirmada").reduce((sum, sale) => sum + saleTotal(sale), 0);
   const spent = sellerPurchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0);
   const visibleRoute = !isLoggedIn && privateRoutes.includes(route) ? "/login" : route;
@@ -67,13 +79,18 @@ export function App() {
     }
 
     supabase.auth.getSession().then(({ data }) => {
-      setIsLoggedIn(Boolean(data.session));
+      const session = data.session;
+      setIsLoggedIn(Boolean(session));
       setAuthLoading(false);
+      if (session) void loadSellerFromSupabase(session.user.id);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(Boolean(session));
       setAuthLoading(false);
+      if (session) {
+        void loadSellerFromSupabase(session.user.id);
+      }
     });
 
     return () => listener.subscription.unsubscribe();
@@ -81,6 +98,7 @@ export function App() {
 
   useEffect(() => writeStorage(STORAGE_KEYS.theme, theme), [theme]);
   useEffect(() => writeStorage(STORAGE_KEYS.sidebarCollapsed, sidebarCollapsed), [sidebarCollapsed]);
+  useEffect(() => writeStorage(STORAGE_KEYS.currentSeller, currentSeller), [currentSeller]);
   useEffect(() => writeStorage(STORAGE_KEYS.stock, stock), [stock]);
   useEffect(() => writeStorage(STORAGE_KEYS.products, products), [products]);
   useEffect(() => writeStorage(STORAGE_KEYS.sales, sales), [sales]);
@@ -89,6 +107,61 @@ export function App() {
   function navigate(nextRoute: Route) {
     window.history.pushState({}, "", nextRoute);
     setRoute(nextRoute);
+  }
+
+  async function loadSellerFromSupabase(userId: string) {
+    if (!supabase) return;
+
+    const { data: sellerData, error: sellerError } = await supabase
+      .from("sellers")
+      .select("id, slug, display_name, whatsapp, role, active, created_at")
+      .eq("id", userId)
+      .single();
+
+    if (sellerError || !sellerData) {
+      setAuthError("Tu usuario existe, pero no encontré su perfil de vendedor.");
+      return;
+    }
+
+    const supabaseSeller = mapSupabaseSeller(sellerData);
+    setCurrentSeller(supabaseSeller);
+    setSellerDirectory((current) => upsertMainSeller(current, supabaseSeller));
+    normalizeLocalSellerId(fallbackSellerId, supabaseSeller.id);
+
+    const { data: settingsData } = await supabase
+      .from("seller_settings")
+      .select("default_common_price_ars, default_fluor_price_ars, default_holo_price_ars, payment_alias, payment_cvu")
+      .eq("seller_id", userId)
+      .maybeSingle();
+
+    if (settingsData) {
+      setSellerSettings({
+        defaultCommonPrice: settingsData.default_common_price_ars ?? fallbackSellerSettings.defaultCommonPrice,
+        defaultFluorPrice: settingsData.default_fluor_price_ars ?? fallbackSellerSettings.defaultFluorPrice,
+        defaultHoloPrice: settingsData.default_holo_price_ars ?? fallbackSellerSettings.defaultHoloPrice,
+        paymentAlias: settingsData.payment_alias ?? "",
+        paymentCvu: settingsData.payment_cvu ?? "",
+      });
+    }
+  }
+
+  function normalizeLocalSellerId(fromSellerId: string, toSellerId: string) {
+    if (fromSellerId === toSellerId) return;
+
+    setStock((current) => current.map((item) => item.sellerId === fromSellerId ? { ...item, sellerId: toSellerId } : item));
+    setProducts((current) => current.map((item) => item.sellerId === fromSellerId ? { ...item, sellerId: toSellerId } : item));
+    setSales((current) =>
+      current.map((sale) =>
+        sale.sellerId === fromSellerId
+          ? {
+              ...sale,
+              sellerId: toSellerId,
+              lines: sale.lines.map((line) => line.sellerId === fromSellerId ? { ...line, sellerId: toSellerId } : line),
+            }
+          : sale,
+      ),
+    );
+    setCart((current) => current.map((line) => line.sellerId === fromSellerId ? { ...line, sellerId: toSellerId } : line));
   }
 
   function goBack() {
@@ -260,7 +333,7 @@ export function App() {
         )}
         {sellerInactive && visibleRoute !== "/login" && <SubscriptionExpiredPage sellerWhatsapp={currentSeller.whatsapp} />}
         {!sellerInactive && isLoggedIn && visibleRoute === "/carga" && (
-          <StockManagerPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
+          <StockManagerPage sellerId={currentSeller.id} settings={sellerSettings} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/gestion-stock" && (
           <StockManagementPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
@@ -272,7 +345,7 @@ export function App() {
         {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
           <SettingsPage
             seller={currentSeller}
-            sellers={sellers}
+            sellers={sellerDirectory}
             isSuperAdmin={currentSeller.role === "admin"}
             navigateCreateSeller={() => navigate("/crear-vendedor")}
           />
@@ -307,6 +380,37 @@ function getPublicSeller(route: Route, allSellers: Seller[]) {
   if (!isSellerStockRoute(route)) return allSellers.find((seller) => seller.isMain);
   const slug = route.split("/")[1];
   return allSellers.find((seller) => seller.slug === slug);
+}
+
+function mapSupabaseSeller(row: {
+  id: string;
+  slug: string;
+  display_name: string;
+  whatsapp: string | null;
+  role: string;
+  active: boolean;
+  created_at: string;
+}): Seller {
+  return {
+    ...fallbackSeller,
+    id: row.id,
+    name: row.display_name,
+    slug: row.slug,
+    whatsapp: row.whatsapp ?? "",
+    role: row.role === "owner" ? "admin" : "seller",
+    isMain: true,
+    status: row.active ? "active" : "inactive",
+    memberSince: row.created_at.slice(0, 10),
+    subscriptionPlan: row.role === "owner" ? "owner" : fallbackSeller.subscriptionPlan,
+  };
+}
+
+function upsertMainSeller(current: Seller[], seller: Seller): Seller[] {
+  const rest = current
+    .filter((item) => item.id !== seller.id && item.slug !== seller.slug)
+    .map((item) => ({ ...item, isMain: false }));
+
+  return [seller, ...rest];
 }
 
 function readStorage<T>(key: string, fallback: T): T {

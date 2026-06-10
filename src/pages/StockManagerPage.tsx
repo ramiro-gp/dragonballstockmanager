@@ -2,20 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Layers3, Package, PackagePlus } from "lucide-react";
 import { getColorOptions, getCromerosExpansion, getDefaultKind, getKindOptions, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
-import type { CardKind, CardStock, Product } from "../lib/types";
+import type { CardKind, CardStock, Product, SellerSettings } from "../lib/types";
 import { groupNumbers, parseCardList, parseRange } from "../lib/helpers";
 
 const defaultImageUrl = "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80";
-const priceStorageKey = "dbsm.publishPrices";
+const defaultPrices: Record<CardKind, number> = { comun: 400, fluor: 700, holo: 2000 };
 
 export function StockManagerPage({
   sellerId,
+  settings,
   stock,
   setStock,
   products,
   setProducts,
 }: {
   sellerId: string;
+  settings: SellerSettings;
   stock: CardStock[];
   setStock: React.Dispatch<React.SetStateAction<CardStock[]>>;
   products: Product[];
@@ -27,7 +29,7 @@ export function StockManagerPage({
   const [from, setFrom] = useState("1");
   const [to, setTo] = useState("12");
   const [except, setExcept] = useState("4, 7");
-  const [prices, setPrices] = useState<Record<CardKind, number>>(() => readPublishPrices());
+  const [prices, setPrices] = useState<Record<CardKind, number>>(() => readPublishPrices(sellerId, settings));
   const [variantDrafts, setVariantDrafts] = useState<Record<string, VariantDraft>>({});
   const [publishedMessage, setPublishedMessage] = useState("");
   const [productName, setProductName] = useState("");
@@ -70,8 +72,12 @@ export function StockManagerPage({
   }, [prices, variantRows]);
 
   useEffect(() => {
-    writePublishPrices(prices);
-  }, [prices]);
+    setPrices(readPublishPrices(sellerId, settings));
+  }, [sellerId, settings]);
+
+  useEffect(() => {
+    writePublishPrices(sellerId, prices);
+  }, [prices, sellerId]);
 
   const variantDraftList = variantRows.map(({ key }) => variantDrafts[key]).filter(Boolean);
   const totalCommonQuantity = Object.values(commonGroups).reduce((sum, quantity) => sum + quantity, 0);
@@ -325,19 +331,26 @@ export function StockManagerPage({
   );
 }
 
-function readPublishPrices(): Record<CardKind, number> {
+function readPublishPrices(sellerId: string, settings: SellerSettings): Record<CardKind, number> {
+  const storageKey = `dbsm.publishPrices.${sellerId}`;
+  const fallback = {
+    comun: settings.defaultCommonPrice || defaultPrices.comun,
+    fluor: settings.defaultFluorPrice || defaultPrices.fluor,
+    holo: settings.defaultHoloPrice || defaultPrices.holo,
+  };
+
   try {
-    const raw = window.localStorage.getItem(priceStorageKey);
-    if (!raw) return { comun: 400, fluor: 700, holo: 2000 };
-    return { comun: 400, fluor: 700, holo: 2000, ...JSON.parse(raw) };
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return fallback;
+    return { ...fallback, ...JSON.parse(raw) };
   } catch {
-    return { comun: 400, fluor: 700, holo: 2000 };
+    return fallback;
   }
 }
 
-function writePublishPrices(prices: Record<CardKind, number>) {
+function writePublishPrices(sellerId: string, prices: Record<CardKind, number>) {
   try {
-    window.localStorage.setItem(priceStorageKey, JSON.stringify(prices));
+    window.localStorage.setItem(`dbsm.publishPrices.${sellerId}`, JSON.stringify(prices));
   } catch {
     // The form still works with in-memory prices if localStorage is unavailable.
   }
