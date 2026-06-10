@@ -1,29 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Layers3, Package, PackagePlus } from "lucide-react";
+import { getColorOptions, getCromerosExpansion, getKindOptions, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product } from "../lib/types";
-import { groupNumbers, parseCardList, parseRange } from "../lib/helpers";
-import { SEARCH_FILTERS } from "../lib/limits";
+import { groupNumbers, parseCardList } from "../lib/helpers";
 
-type AssistedRow = {
-  key: string;
-  number: string;
-  quantity: number;
-  kind: CardKind;
-  variant: string;
-  expansion: string;
-  price: number;
-};
-
-type RowEdit = Partial<Pick<AssistedRow, "quantity" | "kind" | "variant" | "expansion" | "price">>;
-
-type VariantOverride = {
-  kind?: CardKind;
-  variant?: string;
-  price?: number;
-};
-
-const defaultVariants = SEARCH_FILTERS.variants.filter((item) => item !== "todas");
+const defaultImageUrl = "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80";
 
 export function StockManagerPage({
   sellerId,
@@ -39,18 +21,10 @@ export function StockManagerPage({
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
 }) {
   const [publishMode, setPublishMode] = useState<"cards" | "products">("cards");
-  const [mode, setMode] = useState<"list" | "range">("list");
-  const [list, setList] = useState("1 2 2 3 504F");
-  const [from, setFrom] = useState("1");
-  const [to, setTo] = useState("12");
-  const [except, setExcept] = useState("4, 7");
-  const [kind, setKind] = useState<CardKind>("comun");
-  const [selectedVariants, setSelectedVariants] = useState<string[]>(["Base"]);
-  const [expansion, setExpansion] = useState("Sin expansión");
-  const [variantOverrides, setVariantOverrides] = useState("1110: verde\n1134: glitter\n504F: fantasma");
-  const [price, setPrice] = useState(300);
-  const [rowEdits, setRowEdits] = useState<Record<string, RowEdit>>({});
-  const [variantBatch, setVariantBatch] = useState("880: roja x2, verde x2, azul, fluor, comun, dorada");
+  const [cardList, setCardList] = useState("1 1 13 18 19 880 881 881 881 881 881 880 15 68 1275 951 855 855 855");
+  const [defaultPrice, setDefaultPrice] = useState(300);
+  const [variantDrafts, setVariantDrafts] = useState<Record<string, VariantDraft>>({});
+  const [publishedMessage, setPublishedMessage] = useState("");
   const [productName, setProductName] = useState("");
   const [productCategory, setProductCategory] = useState<Product["category"]>("lote");
   const [productDescription, setProductDescription] = useState("");
@@ -58,76 +32,112 @@ export function StockManagerPage({
   const [productPrice, setProductPrice] = useState(0);
   const [productImageUrl, setProductImageUrl] = useState("");
 
-  const previewNumbers = mode === "list" ? parseCardList(list) : parseRange(from, to, except);
-  const grouped = groupNumbers(previewNumbers);
-  const overrideMap = useMemo(() => parseVariantOverrides(variantOverrides), [variantOverrides]);
-  const batchRows = useMemo(() => parseVariantBatch(variantBatch, { expansion, kind, price }), [expansion, kind, price, variantBatch]);
-  const assistedRows = useMemo(() => {
-    if (batchRows.length) {
-      return batchRows.map((baseRow) => {
-        const edit = rowEdits[baseRow.key] ?? {};
-        return { ...baseRow, ...edit };
-      });
-    }
-    return Object.entries(grouped).map(([number, quantity]) => {
-      const override = overrideMap.get(number.toUpperCase());
-      const baseKind = override?.kind ?? kind;
-      const variants = override?.variant ? [override.variant] : selectedVariants;
-      const basePrice = override?.price ?? price;
-      return variants.map((baseVariant) => {
-        const baseRow: AssistedRow = {
-          key: `${number}-${baseKind}-${baseVariant.toLowerCase()}`,
+  const parsedCards = useMemo(() => parseCardList(cardList), [cardList]);
+  const variantRows = useMemo(() => {
+    const occurrences = new Map<string, number>();
+    return parsedCards.flatMap((number) => {
+      if (!needsVariantChoice(number)) return [];
+      const occurrence = (occurrences.get(number) ?? 0) + 1;
+      occurrences.set(number, occurrence);
+      return [{ number, key: `${number}-${occurrence}` }];
+    });
+  }, [parsedCards]);
+  const commonGroups = useMemo(() => groupNumbers(parsedCards.filter((number) => !needsVariantChoice(number))), [parsedCards]);
+
+  useEffect(() => {
+    setVariantDrafts((current) => {
+      const next: Record<string, VariantDraft> = {};
+      variantRows.forEach(({ number, key }) => {
+        const existing = current[key];
+        const kind = existing?.kind ?? getKindOptions(number)[0] ?? "comun";
+        const colors = getColorOptions(number, kind);
+        next[key] = {
+          key,
           number,
-          quantity,
-          kind: baseKind,
-          variant: baseVariant,
-          expansion,
-          price: basePrice,
+          kind,
+          variant: existing && colors.includes(existing.variant) ? existing.variant : colors[0] ?? "Base",
+          quantity: existing?.quantity ?? 1,
+          price: existing?.price ?? defaultPrice,
         };
-        const edit = rowEdits[baseRow.key] ?? {};
-        return { ...baseRow, ...edit };
       });
-    }).flat();
-  }, [batchRows, expansion, grouped, kind, overrideMap, price, rowEdits, selectedVariants]);
+      return next;
+    });
+  }, [defaultPrice, variantRows]);
 
-  const publishedQuantity = assistedRows.reduce((sum, row) => sum + Math.max(0, row.quantity), 0);
+  const variantDraftList = variantRows.map(({ key }) => variantDrafts[key]).filter(Boolean);
+  const totalCommonQuantity = Object.values(commonGroups).reduce((sum, quantity) => sum + quantity, 0);
+  const totalVariantQuantity = variantDraftList.reduce((sum, row) => sum + Math.max(0, row.quantity), 0);
+  const totalToPublish = totalCommonQuantity + totalVariantQuantity;
 
-  function loadStock() {
-    const rows = assistedRows.filter((row) => row.quantity > 0);
+  function updateVariantRow(key: string, patch: Partial<VariantDraft>) {
+    setPublishedMessage("");
+    setVariantDrafts((current) => {
+      const currentRow = current[key];
+      if (!currentRow) return current;
+      const nextKind = patch.kind ?? currentRow.kind;
+      const colors = getColorOptions(currentRow.number, nextKind);
+      const nextVariant = patch.kind && !patch.variant ? colors[0] ?? "Base" : patch.variant ?? currentRow.variant;
+      return {
+        ...current,
+        [key]: {
+          ...currentRow,
+          ...patch,
+          kind: nextKind,
+          variant: colors.includes(nextVariant) ? nextVariant : colors[0] ?? "Base",
+        },
+      };
+    });
+  }
+
+  function publishCards() {
+    if (!totalToPublish) return;
+    const rowsToPublish = [
+      ...Object.entries(commonGroups).map(([number, quantity]) => ({
+        number,
+        quantity,
+        kind: "comun" as CardKind,
+        variant: "Base",
+        price: defaultPrice,
+      })),
+      ...variantDraftList.filter((row) => row.quantity > 0),
+    ];
+
     setStock((current) => {
       const next = [...current];
-      rows.forEach((row) => {
+      rowsToPublish.forEach((row) => {
+        const expansion = getCromerosExpansion(row.number);
         const existingIndex = next.findIndex(
           (item) =>
             item.sellerId === sellerId &&
             item.number === row.number &&
             item.kind === row.kind &&
             item.variant.toLowerCase() === row.variant.toLowerCase() &&
-            item.expansion.toLowerCase() === row.expansion.toLowerCase(),
+            item.expansion === expansion,
         );
         if (existingIndex >= 0) {
-          next[existingIndex] = { ...next[existingIndex], quantity: next[existingIndex].quantity + row.quantity, price: row.price };
-        } else {
-          next.push({
-            id: crypto.randomUUID(),
-            sellerId,
-            number: row.number,
-            expansion: row.expansion,
-            kind: row.kind,
-            variant: row.variant,
-            quantity: row.quantity,
-            reserved: 0,
+          next[existingIndex] = {
+            ...next[existingIndex],
+            quantity: next[existingIndex].quantity + row.quantity,
             price: row.price,
-            special: row.number.endsWith("F") || row.variant.toLowerCase().includes("fantasma") ? "fantasma" : undefined,
-          });
+          };
+          return;
         }
+        next.push({
+          id: crypto.randomUUID(),
+          sellerId,
+          number: row.number,
+          expansion,
+          kind: row.kind,
+          variant: row.variant,
+          quantity: row.quantity,
+          reserved: 0,
+          price: row.price,
+          special: row.number.endsWith("F") ? "fantasma" : undefined,
+        });
       });
       return next;
     });
-  }
-
-  function updatePreviewRow(key: string, edit: RowEdit) {
-    setRowEdits((current) => ({ ...current, [key]: { ...current[key], ...edit } }));
+    setPublishedMessage(`${totalToPublish} cartas publicadas.`);
   }
 
   function loadProduct() {
@@ -143,7 +153,7 @@ export function StockManagerPage({
         description: productDescription.trim() || "Producto publicado sin descripción.",
         quantity: Math.max(1, productQuantity),
         price: Math.max(0, productPrice),
-        imageUrl: productImageUrl.trim() || "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80",
+        imageUrl: productImageUrl.trim() || defaultImageUrl,
       },
     ]);
     setProductName("");
@@ -175,95 +185,69 @@ export function StockManagerPage({
       </section>
 
       {publishMode === "cards" ? (
-        <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
+        <div className="publish-wizard-grid">
           <section className="tool-surface h-fit">
-            <p className="eyebrow">Cartas sueltas</p>
-            <h2 className="panel-title">Sumar cartas al stock público</h2>
-            <p className="mt-2 text-sm text-[var(--muted)]">Ideal para publicar faltantes individuales con variantes, cantidad y precio por carta.</p>
-            <div className="segmented mt-4">
-              <button className={clsx(mode === "list" && "active")} onClick={() => setMode("list")}>Lista</button>
-              <button className={clsx(mode === "range" && "active")} onClick={() => setMode("range")}>Rango</button>
-            </div>
+            <p className="eyebrow">Paso 1</p>
+            <h2 className="panel-title">Pegá sólo números</h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">Las cartas comunes se agrupan solas. Si una carta puede tener variante, aparece en la tabla para completar.</p>
             <div className="mt-4 grid gap-3">
-              {mode === "list" ? (
-                <label className="field"><span>Cartas</span><textarea rows={5} value={list} onChange={(event) => setList(event.target.value)} /></label>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="field"><span>Desde</span><input value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-                  <label className="field"><span>Hasta</span><input value={to} onChange={(event) => setTo(event.target.value)} /></label>
-                  <label className="field col-span-2"><span>Excepto</span><input value={except} onChange={(event) => setExcept(event.target.value)} /></label>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <label className="field"><span>Tipo</span><select value={kind} onChange={(event) => setKind(event.target.value as CardKind)}><option value="comun">Común</option><option value="fluor">Fluor</option><option value="holo">Holo</option></select></label>
-                <label className="field"><span>Variantes</span><select multiple value={selectedVariants} onChange={(event) => setSelectedVariants(Array.from(event.target.selectedOptions, (option) => option.value))}>{defaultVariants.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label className="field">
+                <span>Lista de cartas</span>
+                <textarea rows={8} value={cardList} onChange={(event) => setCardList(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Precio para comunes</span>
+                <input type="number" min={0} value={defaultPrice} onChange={(event) => setDefaultPrice(Math.max(0, Number(event.target.value)))} />
+              </label>
+              <div className="assistant-summary">
+                <strong>Detectado</strong>
+                <span>{totalCommonQuantity} comunes listas para publicar.</span>
+                <span>{variantRows.length} filas necesitan variante.</span>
+                <span>{totalToPublish} cartas en total.</span>
               </div>
-              <label className="field"><span>Expansión</span><select value={expansion} onChange={(event) => setExpansion(event.target.value)}>{SEARCH_FILTERS.expansions.filter((item) => item !== "todas").map((option) => <option key={option} value={option}>{option}</option>)}<option value="Sin expansión">Sin expansión</option></select></label>
-              <label className="field"><span>Precio default</span><input type="number" value={price} onChange={(event) => setPrice(Number(event.target.value))} /></label>
-              <button className="primary-button" onClick={loadStock} disabled={!assistedRows.length}><PackagePlus size={18} />Publicar {publishedQuantity} cartas</button>
             </div>
           </section>
 
           <section className="tool-surface">
-            <div className="section-heading"><h3>Previsualización editable</h3><span>{assistedRows.length} variantes</span></div>
-            <div className="assisted-table">
-              <div className="assisted-row header">
-                <span>Número</span>
-                <span>Cantidad</span>
-                <span>Tipo</span>
-                <span>Variante</span>
-                <span>Expansión</span>
-                <span>Precio</span>
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Paso 2</p>
+                <h3>Completá variantes</h3>
               </div>
-              {assistedRows.map((row) => (
-                <div key={row.key} className="assisted-row">
-                  <strong>{row.number}</strong>
-                  <input type="number" min={1} value={row.quantity} onChange={(event) => updatePreviewRow(row.key, { quantity: Number(event.target.value) })} />
-                  <select value={row.kind} onChange={(event) => updatePreviewRow(row.key, { kind: event.target.value as CardKind })}>
-                    <option value="comun">Común</option>
-                    <option value="fluor">Fluor</option>
-                    <option value="holo">Holo</option>
+              <span>{variantRows.length} filas</span>
+            </div>
+            <div className="variant-sheet">
+              <div className="variant-sheet-row header">
+                <span>N° carta</span>
+                <span>Variante</span>
+                <span>Color variante</span>
+                <span>Cantidad</span>
+                <span>Precio unitario</span>
+              </div>
+              {variantDraftList.map((row) => (
+                <div key={row.key} className="variant-sheet-row">
+                  <strong>
+                    {row.number}
+                    <small>{getCromerosExpansion(row.number)}</small>
+                  </strong>
+                  <select value={row.kind} onChange={(event) => updateVariantRow(row.key, { kind: event.target.value as CardKind })}>
+                    {getKindOptions(row.number).map((option) => <option key={option} value={option}>{kindText(option)}</option>)}
                   </select>
-                  <input value={row.variant} onChange={(event) => updatePreviewRow(row.key, { variant: event.target.value })} />
-                  <input value={row.expansion} onChange={(event) => updatePreviewRow(row.key, { expansion: event.target.value })} />
-                  <input type="number" min={0} value={row.price} onChange={(event) => updatePreviewRow(row.key, { price: Number(event.target.value) })} />
+                  <select value={row.variant} onChange={(event) => updateVariantRow(row.key, { variant: event.target.value })}>
+                    {getColorOptions(row.number, row.kind).map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                  <input type="number" min={1} value={row.quantity} onChange={(event) => updateVariantRow(row.key, { quantity: Math.max(1, Number(event.target.value)) })} />
+                  <input type="number" min={0} value={row.price} onChange={(event) => updateVariantRow(row.key, { price: Math.max(0, Number(event.target.value)) })} />
                 </div>
               ))}
-              {!assistedRows.length && <p className="empty">Pegá una lista o elegí un rango para ver la previsualización.</p>}
+              {!variantDraftList.length && <p className="empty">No hay cartas con variantes en la lista. Podés publicar las comunes directamente.</p>}
             </div>
-          </section>
-
-          <section className="tool-surface xl:col-span-2">
-            <p className="eyebrow">Publicación asistida</p>
-            <h3 className="panel-title">Detalle por variantes</h3>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              Para una misma carta con varias variantes, escribí una línea por número. Ejemplo:
-              880: roja x2, verde x2, azul, fluor, comun, dorada.
-            </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_280px]">
-              <label className="field">
-                <span>Variantes y cantidades</span>
-                <textarea rows={6} value={variantBatch} onChange={(event) => setVariantBatch(event.target.value)} />
-              </label>
-              <div className="assistant-summary">
-                <strong>Cómo se lee</strong>
-                <span>Si no ponés cantidad, cuenta como 1.</span>
-                <span>Fluor y común se cargan como tipo propio.</span>
-                <span>Los colores usan el tipo seleccionado arriba.</span>
-                <span>Dejá este campo vacío para usar lista o rango.</span>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_280px]">
-              <label className="field">
-                <span>Ajustes puntuales opcionales</span>
-                <textarea rows={4} value={variantOverrides} onChange={(event) => setVariantOverrides(event.target.value)} />
-              </label>
-              <div className="assistant-summary">
-                <strong>Para excepciones simples</strong>
-                <span>1110: verde</span>
-                <span>1134: holo glitter 1500</span>
-                <span>504F: fantasma</span>
-              </div>
+            <div className="publish-sheet-footer">
+              {publishedMessage && <span className="save-feedback">{publishedMessage}</span>}
+              <button className="primary-button" onClick={publishCards} disabled={!totalToPublish}>
+                <PackagePlus size={18} />
+                Publicar {totalToPublish} cartas
+              </button>
             </div>
           </section>
         </div>
@@ -315,66 +299,8 @@ export function StockManagerPage({
   );
 }
 
-function parseVariantOverrides(input: string) {
-  return input.split(/\n+/).reduce<Map<string, VariantOverride>>((acc, line) => {
-    const match = line.trim().match(/^(\d+F?)\s*[:=-]\s*(.+)$/i);
-    if (!match) return acc;
-    const number = match[1].toUpperCase();
-    const rawValue = match[2].trim();
-    const priceMatch = rawValue.match(/(?:\$|\b)(\d{3,})(?!.*\d)/);
-    const price = priceMatch ? Number(priceMatch[1]) : undefined;
-    const withoutPrice = priceMatch ? rawValue.replace(priceMatch[0], "").trim() : rawValue;
-    const lower = withoutPrice.toLowerCase();
-    const kind = inferKind(lower);
-    const variant = cleanVariant(withoutPrice, kind);
-    acc.set(number, { kind, variant, price });
-    return acc;
-  }, new Map());
-}
-
-function parseVariantBatch(input: string, defaults: { expansion: string; kind: CardKind; price: number }) {
-  return input.split(/\n+/).flatMap((line, lineIndex) => {
-    const match = line.trim().match(/^(\d+F?)\s*[:=-]\s*(.+)$/i);
-    if (!match) return [];
-    const number = match[1].toUpperCase();
-    return match[2].split(",").map((part, partIndex) => {
-      const rawPart = part.trim();
-      const quantityMatch = rawPart.match(/\bx\s*(\d+)\b|(\d+)\s*x\b/i);
-      const quantity = quantityMatch ? Number(quantityMatch[1] ?? quantityMatch[2]) : 1;
-      const rawVariant = quantityMatch ? rawPart.replace(quantityMatch[0], "").trim() : rawPart;
-      const lower = rawVariant.toLowerCase();
-      const parsedKind = inferKind(lower);
-      const rowKind = parsedKind ?? "holo";
-      return {
-        key: `batch-${lineIndex}-${partIndex}-${number}-${rowKind}-${rawVariant.toLowerCase()}`,
-        number,
-        quantity: Math.max(1, quantity),
-        kind: rowKind,
-        variant: cleanVariant(rawVariant, rowKind),
-        expansion: defaults.expansion,
-        price: defaults.price,
-      };
-    }).filter((row) => row.variant);
-  });
-}
-
-function inferKind(value: string): CardKind | undefined {
-  if (/\bholo\b/.test(value)) return "holo";
-  if (/\bfluor\b/.test(value)) return "fluor";
-  if (/\bcom[uú]n\b|\bbase\b/.test(value)) return "comun";
-  return undefined;
-}
-
-function cleanVariant(value: string, kind?: CardKind) {
-  const cleaned = value
-    .replace(/\b(holo|fluor|com[uú]n)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (cleaned) return toTitleCase(cleaned);
+function kindText(kind: CardKind) {
+  if (kind === "comun") return "Común";
   if (kind === "fluor") return "Fluor";
-  return "Base";
-}
-
-function toTitleCase(value: string) {
-  return value.replace(/\p{L}+/gu, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+  return "Holo";
 }

@@ -43,7 +43,7 @@ export function StockManagementPage({
     setDraftStock((current) => current.map((item) => item.id === itemId ? { ...item, ...patch } : item));
   }
 
-  function updateProduct(productId: string, patch: Partial<Pick<Product, "quantity" | "price" | "name" | "category">>) {
+  function updateProduct(productId: string, patch: Partial<Pick<Product, "quantity" | "price" | "name" | "category" | "description" | "imageUrl">>) {
     setSavedMessage("");
     setDraftProducts((current) => current.map((product) => product.id === productId ? { ...product, ...patch } : product));
   }
@@ -155,6 +155,8 @@ export function StockManagementPage({
             <span>Producto</span>
             <span>Cant.</span>
             <span>Precio</span>
+            <span>Descripción</span>
+            <span>Foto</span>
             <span></span>
           </div>
           {draftProducts.map((product) => (
@@ -165,6 +167,8 @@ export function StockManagementPage({
               <input value={product.name} onChange={(event) => updateProduct(product.id, { name: event.target.value })} />
               <input type="number" min={0} value={product.quantity} onChange={(event) => updateProduct(product.id, { quantity: Math.max(0, Number(event.target.value)) })} />
               <input type="number" min={0} value={product.price} onChange={(event) => updateProduct(product.id, { price: Math.max(0, Number(event.target.value)) })} />
+              <input value={product.description} onChange={(event) => updateProduct(product.id, { description: event.target.value })} />
+              <input value={product.imageUrl} onChange={(event) => updateProduct(product.id, { imageUrl: event.target.value })} />
               <button className="ghost-icon" onClick={() => setDraftProducts((current) => current.filter((row) => row.id !== product.id))} aria-label="Eliminar producto">
                 <Trash2 size={16} />
               </button>

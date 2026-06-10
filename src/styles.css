@@ -1206,6 +1206,80 @@ textarea.input {
   width: fit-content;
 }
 
+.publish-wizard-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.variant-sheet {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.variant-sheet-row {
+  display: grid;
+  grid-template-columns: 92px 130px minmax(150px, 1fr) 96px 130px;
+  gap: 0.55rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 0.65rem;
+}
+
+.variant-sheet-row.header {
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.variant-sheet-row strong {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.variant-sheet-row small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.variant-sheet-row input,
+.variant-sheet-row select {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 0 0.6rem;
+}
+
+.variant-sheet-row input:focus,
+.variant-sheet-row select:focus {
+  border-color: var(--orange);
+  outline: none;
+}
+
+.publish-sheet-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  padding-top: 1rem;
+  backdrop-filter: blur(10px);
+}
+
 .product-stock-row {
   grid-template-columns: 100px 1fr auto auto;
 }
@@ -1263,7 +1337,7 @@ textarea.input {
 }
 
 .product-manage-row {
-  grid-template-columns: 120px minmax(160px, 1fr) 84px 104px 36px;
+  grid-template-columns: 120px minmax(150px, 1fr) 78px 96px minmax(180px, 1.2fr) minmax(160px, 1fr) 36px;
 }
 
 .status-button {
@@ -1693,12 +1767,15 @@ textarea.input {
 
   .assisted-row,
   .assisted-row.header,
+  .variant-sheet-row,
+  .variant-sheet-row.header,
   .manage-row,
   .product-manage-row {
     grid-template-columns: 1fr;
   }
 
-  .assisted-row.header {
+  .assisted-row.header,
+  .variant-sheet-row.header {
     display: none;
   }
 
@@ -1852,6 +1929,10 @@ textarea.input {
 
   .publish-hero {
     grid-template-columns: 1fr 360px;
+  }
+
+  .publish-wizard-grid {
+    grid-template-columns: 380px minmax(0, 1fr);
   }
 
   .manage-actions {
