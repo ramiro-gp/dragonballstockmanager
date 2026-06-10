@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { Check, ChevronDown, Filter, ShoppingCart, ShieldCheck, Truck, Wand2 } from "lucide-react";
 import type { Route } from "../app/routes";
@@ -172,15 +172,37 @@ function MultiFilter({
   selected: string[];
   setSelected: (next: string[]) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const label = selected.length ? `${selected.length} seleccionada${selected.length === 1 ? "" : "s"}` : "Todas";
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   function toggle(option: string) {
     setSelected(selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option]);
   }
 
   return (
-    <div className="filter-group">
+    <div className="filter-group" ref={containerRef}>
       <div className="filter-group-header">
         <span>{title}</span>
         {selected.length > 0 && <button onClick={() => setSelected([])}>Limpiar</button>}
