@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
-import { cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
+import { availableQuantity, cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { supabase } from "./lib/supabase";
 import type { CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerSettings, Theme } from "./lib/types";
 import { CartPage } from "./pages/CartPage";
@@ -56,7 +56,7 @@ export function App() {
   const publicSeller = getPublicSeller(route, sellerDirectory) ?? currentSeller;
   const sellerStock = stock.filter((item) => item.sellerId === currentSeller.id);
   const sellerProducts = products.filter((item) => item.sellerId === currentSeller.id);
-  const publicSellerStock = stock.filter((item) => item.sellerId === publicSeller.id);
+  const publicSellerStock = stock.filter((item) => item.sellerId === publicSeller.id && availableQuantity(item) > 0);
   const publicSellerProducts = products.filter((item) => item.sellerId === publicSeller.id && item.quantity > 0);
   const sellerSales = sales.filter((sale) => sale.sellerId === currentSeller.id);
   const sellerPurchases = purchases.filter((purchase) => purchase.sellerId === currentSeller.id);

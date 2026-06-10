@@ -39,12 +39,12 @@ export function PublicStockPage({
   const [productPage, setProductPage] = useState(1);
   const numbers = parseCardList(query);
 
-  const results = stock.filter((item) => {
+  const results = useMemo(() => stock.filter((item) => {
     const byNumber = numbers.length ? numbers.includes(item.number.toUpperCase()) : true;
     const byVariant = !variants.length || variants.map((value) => value.toLowerCase()).includes(item.variant.toLowerCase());
     const byExpansion = !expansions.length || expansions.some((selected) => item.expansion.toLowerCase().includes(selected.toLowerCase()));
-    return byNumber && byVariant && byExpansion && item.quantity > 0;
-  });
+    return byNumber && byVariant && byExpansion && availableQuantity(item) > 0;
+  }), [expansions, numbers, stock, variants]);
 
   const grouped = Object.values(
     results.reduce<Record<string, CardStock[]>>((acc, item) => {
@@ -55,7 +55,7 @@ export function PublicStockPage({
 
   const massAddLines = useMemo(() => {
     const requested = new Set(numbers);
-    return stock
+    return results
       .filter((item) => requested.has(item.number.toUpperCase()) && availableQuantity(item) > 0)
       .map((item) => ({
         itemType: "card" as const,
@@ -66,7 +66,7 @@ export function PublicStockPage({
         quantity: 1,
         maxQuantity: availableQuantity(item),
       }));
-  }, [numbers, stock]);
+  }, [numbers, results]);
 
   const cardPageSize = viewMode === "cards" ? 8 : 12;
   const productPageSize = 6;

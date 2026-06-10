@@ -29,7 +29,7 @@ export function StockManagerPage({
 }) {
   const [publishMode, setPublishMode] = useState<"cards" | "products">("cards");
   const [loadMode, setLoadMode] = useState<"list" | "range">("list");
-  const [cardList, setCardList] = useState("1 1 13 18 19 880 881 881 881 881 881 880 15 68 1275 951 855 855 855");
+  const [cardList, setCardList] = useState("");
   const [from, setFrom] = useState("1");
   const [to, setTo] = useState("12");
   const [except, setExcept] = useState("4, 7");
