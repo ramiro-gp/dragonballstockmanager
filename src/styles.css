@@ -618,6 +618,38 @@ select:focus-visible {
   padding: clamp(1rem, 3vw, 1.35rem);
 }
 
+.publish-hero {
+  display: grid;
+  gap: 1rem;
+  align-items: end;
+}
+
+.publish-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 0.4rem;
+}
+
+.publish-mode-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 48px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.publish-mode-tabs button.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--orange) 10%, transparent);
+}
+
 .search-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1482,6 +1514,22 @@ textarea.input {
   color: var(--text);
 }
 
+.publish-tips {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.publish-tips span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .benefit-card {
   display: flex;
   gap: 0.9rem;
@@ -1732,6 +1780,10 @@ textarea.input {
 
   .balance-pill {
     display: inline-flex;
+  }
+
+  .publish-hero {
+    grid-template-columns: 1fr 360px;
   }
 }
 

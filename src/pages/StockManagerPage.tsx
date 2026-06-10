@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { PackagePlus } from "lucide-react";
+import { Layers3, Package, PackagePlus } from "lucide-react";
 import type { CardKind, CardStock, Product } from "../lib/types";
 import { availableQuantity, formatMoney, groupNumbers, kindLabel, parseCardList, parseRange } from "../lib/helpers";
 
@@ -35,6 +35,7 @@ export function StockManagerPage({
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
 }) {
+  const [publishMode, setPublishMode] = useState<"cards" | "products">("cards");
   const [mode, setMode] = useState<"list" | "range">("list");
   const [list, setList] = useState("1 2 2 3 504F");
   const [from, setFrom] = useState("1");
@@ -138,128 +139,163 @@ export function StockManagerPage({
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-      <section className="tool-surface h-fit">
-        <p className="eyebrow">Publicar cartas</p>
-        <h2 className="panel-title">Sumar cartas al stock público</h2>
-        <p className="mt-2 text-sm text-[var(--muted)]">Todo lo que cargues acá queda disponible para que el comprador lo vea y lo agregue al carrito.</p>
-        <div className="segmented mt-4">
-          <button className={clsx(mode === "list" && "active")} onClick={() => setMode("list")}>Lista</button>
-          <button className={clsx(mode === "range" && "active")} onClick={() => setMode("range")}>Rango</button>
+    <div className="space-y-5">
+      <section className="tool-surface publish-hero">
+        <div>
+          <p className="eyebrow">Publicar</p>
+          <h2 className="panel-title">¿Qué vas a poner a la venta?</h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">Publicar agrega el ítem al stock visible para compradores. Usá Cartas para unidades sueltas y Productos para cajas, lotes, figuras, tomos o una expansión completa.</p>
         </div>
-        <div className="mt-4 grid gap-3">
-          {mode === "list" ? (
-            <label className="field"><span>Cartas</span><textarea rows={5} value={list} onChange={(event) => setList(event.target.value)} /></label>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <label className="field"><span>Desde</span><input value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-              <label className="field"><span>Hasta</span><input value={to} onChange={(event) => setTo(event.target.value)} /></label>
-              <label className="field col-span-2"><span>Excepto</span><input value={except} onChange={(event) => setExcept(event.target.value)} /></label>
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <label className="field"><span>Tipo</span><select value={kind} onChange={(event) => setKind(event.target.value as CardKind)}><option value="comun">Común</option><option value="fluor">Fluor</option><option value="holo">Holo</option></select></label>
-            <label className="field"><span>Variante</span><input value={variant} onChange={(event) => setVariant(event.target.value)} /></label>
-          </div>
-          <label className="field"><span>Expansión</span><input value={expansion} onChange={(event) => setExpansion(event.target.value)} maxLength={80} /></label>
-          <label className="field"><span>Precio default</span><input type="number" value={price} onChange={(event) => setPrice(Number(event.target.value))} /></label>
-          <button className="primary-button" onClick={loadStock} disabled={!assistedRows.length}><PackagePlus size={18} />Publicar {previewNumbers.length} cartas</button>
+        <div className="publish-mode-tabs">
+          <button className={clsx(publishMode === "cards" && "active")} onClick={() => setPublishMode("cards")}>
+            <Layers3 size={18} />
+            Cartas
+          </button>
+          <button className={clsx(publishMode === "products" && "active")} onClick={() => setPublishMode("products")}>
+            <Package size={18} />
+            Productos
+          </button>
         </div>
       </section>
 
-      <section className="tool-surface">
-        <div className="section-heading"><h3>Previsualización editable</h3><span>{assistedRows.length} variantes</span></div>
-        <div className="assisted-table">
-          <div className="assisted-row header">
-            <span>Número</span>
-            <span>Cantidad</span>
-            <span>Tipo</span>
-            <span>Variante</span>
-            <span>Expansión</span>
-            <span>Precio</span>
-          </div>
-          {assistedRows.map((row) => (
-            <div key={row.key} className="assisted-row">
-              <strong>{row.number}</strong>
-              <input type="number" min={1} value={row.quantity} onChange={(event) => updatePreviewRow(row.key, { quantity: Number(event.target.value) })} />
-              <select value={row.kind} onChange={(event) => updatePreviewRow(row.key, { kind: event.target.value as CardKind })}>
-                <option value="comun">Común</option>
-                <option value="fluor">Fluor</option>
-                <option value="holo">Holo</option>
-              </select>
-              <input value={row.variant} onChange={(event) => updatePreviewRow(row.key, { variant: event.target.value })} />
-              <input value={row.expansion} onChange={(event) => updatePreviewRow(row.key, { expansion: event.target.value })} />
-              <input type="number" min={0} value={row.price} onChange={(event) => updatePreviewRow(row.key, { price: Number(event.target.value) })} />
+      {publishMode === "cards" ? (
+        <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
+          <section className="tool-surface h-fit">
+            <p className="eyebrow">Cartas sueltas</p>
+            <h2 className="panel-title">Sumar cartas al stock público</h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">Ideal para publicar faltantes individuales con variantes, cantidad y precio por carta.</p>
+            <div className="segmented mt-4">
+              <button className={clsx(mode === "list" && "active")} onClick={() => setMode("list")}>Lista</button>
+              <button className={clsx(mode === "range" && "active")} onClick={() => setMode("range")}>Rango</button>
             </div>
-          ))}
-          {!assistedRows.length && <p className="empty">Pegá una lista o elegí un rango para ver la previsualización.</p>}
-        </div>
-        <div className="section-heading mt-6"><h3>Cartas publicadas</h3><span>{stock.length} variantes</span></div>
-        <div className="stock-table">
-          {stock.map((item) => <div key={item.id} className="stock-row"><span>{item.number}</span><span>{kindLabel[item.kind]} · {item.variant}</span><span>x{availableQuantity(item)} / {item.quantity}</span><strong>{formatMoney(item.price)}</strong></div>)}
-        </div>
-      </section>
-      <section className="tool-surface xl:col-span-2">
-        <p className="eyebrow">Publicación asistida</p>
-        <h3 className="panel-title">Variantes sin 500 clicks</h3>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Pegás todo el lote como común/base y después sólo las excepciones. Formatos útiles:
-          1110: verde, 1134: holo glitter 1500, 504F: fantasma.
-        </p>
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_280px]">
-          <label className="field">
-            <span>Excepciones de variante</span>
-            <textarea rows={6} value={variantOverrides} onChange={(event) => setVariantOverrides(event.target.value)} />
-          </label>
-          <div className="assistant-summary">
-            <strong>Cómo se usa</strong>
-            <span>1. Pegás el lote completo.</span>
-            <span>2. Elegís default: común/base.</span>
-            <span>3. Pegás variantes, tipos o precios especiales.</span>
-            <span>4. Ajustás la tabla y confirmás la carga.</span>
-          </div>
-        </div>
-      </section>
-      <section className="tool-surface xl:col-span-2">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Otros productos</p>
-            <h3 className="panel-title">Publicar productos que no son cartas</h3>
-          </div>
-          <span>{products.length} productos</span>
-        </div>
-        <div className="product-load-grid mt-4">
-          <label className="field"><span>Nombre</span><input value={productName} onChange={(event) => setProductName(event.target.value)} placeholder="Figura, tomo, caja, lote..." maxLength={80} /></label>
-          <label className="field">
-            <span>Categoría</span>
-            <select value={productCategory} onChange={(event) => setProductCategory(event.target.value as Product["category"])}>
-              <option value="figura">Figura</option>
-              <option value="tomo">Tomo</option>
-              <option value="caja">Caja</option>
-              <option value="lote">Lote</option>
-              <option value="figurita">Figurita</option>
-            </select>
-          </label>
-          <label className="field"><span>Cantidad</span><input type="number" min={1} value={productQuantity} onChange={(event) => setProductQuantity(Number(event.target.value))} /></label>
-          <label className="field"><span>Precio</span><input type="number" min={0} value={productPrice} onChange={(event) => setProductPrice(Number(event.target.value))} /></label>
-          <label className="field product-load-wide"><span>Descripción</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Estado, medidas, contenido del lote..." maxLength={600} /></label>
-          <label className="field product-load-wide"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." /></label>
-          <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim()}>
-            <PackagePlus size={18} />
-            Publicar producto
-          </button>
-        </div>
-        <div className="stock-table">
-          {products.map((product) => (
-            <div key={product.id} className="stock-row product-stock-row">
-              <span>{product.category}</span>
-              <span>{product.name}</span>
-              <span>x{product.quantity}</span>
-              <strong>{formatMoney(product.price)}</strong>
+            <div className="mt-4 grid gap-3">
+              {mode === "list" ? (
+                <label className="field"><span>Cartas</span><textarea rows={5} value={list} onChange={(event) => setList(event.target.value)} /></label>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="field"><span>Desde</span><input value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+                  <label className="field"><span>Hasta</span><input value={to} onChange={(event) => setTo(event.target.value)} /></label>
+                  <label className="field col-span-2"><span>Excepto</span><input value={except} onChange={(event) => setExcept(event.target.value)} /></label>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="field"><span>Tipo</span><select value={kind} onChange={(event) => setKind(event.target.value as CardKind)}><option value="comun">Común</option><option value="fluor">Fluor</option><option value="holo">Holo</option></select></label>
+                <label className="field"><span>Variante</span><input value={variant} onChange={(event) => setVariant(event.target.value)} /></label>
+              </div>
+              <label className="field"><span>Expansión</span><input value={expansion} onChange={(event) => setExpansion(event.target.value)} maxLength={80} /></label>
+              <label className="field"><span>Precio default</span><input type="number" value={price} onChange={(event) => setPrice(Number(event.target.value))} /></label>
+              <button className="primary-button" onClick={loadStock} disabled={!assistedRows.length}><PackagePlus size={18} />Publicar {previewNumbers.length} cartas</button>
             </div>
-          ))}
+          </section>
+
+          <section className="tool-surface">
+            <div className="section-heading"><h3>Previsualización editable</h3><span>{assistedRows.length} variantes</span></div>
+            <div className="assisted-table">
+              <div className="assisted-row header">
+                <span>Número</span>
+                <span>Cantidad</span>
+                <span>Tipo</span>
+                <span>Variante</span>
+                <span>Expansión</span>
+                <span>Precio</span>
+              </div>
+              {assistedRows.map((row) => (
+                <div key={row.key} className="assisted-row">
+                  <strong>{row.number}</strong>
+                  <input type="number" min={1} value={row.quantity} onChange={(event) => updatePreviewRow(row.key, { quantity: Number(event.target.value) })} />
+                  <select value={row.kind} onChange={(event) => updatePreviewRow(row.key, { kind: event.target.value as CardKind })}>
+                    <option value="comun">Común</option>
+                    <option value="fluor">Fluor</option>
+                    <option value="holo">Holo</option>
+                  </select>
+                  <input value={row.variant} onChange={(event) => updatePreviewRow(row.key, { variant: event.target.value })} />
+                  <input value={row.expansion} onChange={(event) => updatePreviewRow(row.key, { expansion: event.target.value })} />
+                  <input type="number" min={0} value={row.price} onChange={(event) => updatePreviewRow(row.key, { price: Number(event.target.value) })} />
+                </div>
+              ))}
+              {!assistedRows.length && <p className="empty">Pegá una lista o elegí un rango para ver la previsualización.</p>}
+            </div>
+            <div className="section-heading mt-6"><h3>Cartas publicadas</h3><span>{stock.length} variantes</span></div>
+            <div className="stock-table">
+              {stock.map((item) => <div key={item.id} className="stock-row"><span>{item.number}</span><span>{kindLabel[item.kind]} · {item.variant}</span><span>x{availableQuantity(item)} / {item.quantity}</span><strong>{formatMoney(item.price)}</strong></div>)}
+            </div>
+          </section>
+
+          <section className="tool-surface xl:col-span-2">
+            <p className="eyebrow">Publicación asistida</p>
+            <h3 className="panel-title">Variantes sin 500 clicks</h3>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Pegás todo el lote como común/base y después sólo las excepciones. Formatos útiles:
+              1110: verde, 1134: holo glitter 1500, 504F: fantasma.
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_280px]">
+              <label className="field">
+                <span>Excepciones de variante</span>
+                <textarea rows={6} value={variantOverrides} onChange={(event) => setVariantOverrides(event.target.value)} />
+              </label>
+              <div className="assistant-summary">
+                <strong>Cuándo usar Cartas</strong>
+                <span>Cartas repetidas sueltas.</span>
+                <span>Faltantes individuales.</span>
+                <span>Variantes con precio propio.</span>
+                <span>No usar para cajas cerradas o colecciones completas.</span>
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      ) : (
+        <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+          <section className="tool-surface">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Productos y lotes</p>
+                <h3 className="panel-title">Publicar algo que se vende como unidad</h3>
+              </div>
+              <span>{products.length} productos</span>
+            </div>
+            <div className="product-load-grid mt-4">
+              <label className="field"><span>Nombre</span><input value={productName} onChange={(event) => setProductName(event.target.value)} placeholder="Expansión completa con caja" maxLength={80} /></label>
+              <label className="field">
+                <span>Categoría</span>
+                <select value={productCategory} onChange={(event) => setProductCategory(event.target.value as Product["category"])}>
+                  <option value="lote">Lote</option>
+                  <option value="caja">Caja</option>
+                  <option value="figura">Figura</option>
+                  <option value="tomo">Tomo</option>
+                  <option value="figurita">Figurita</option>
+                </select>
+              </label>
+              <label className="field"><span>Cantidad</span><input type="number" min={1} value={productQuantity} onChange={(event) => setProductQuantity(Number(event.target.value))} /></label>
+              <label className="field"><span>Precio</span><input type="number" min={0} value={productPrice} onChange={(event) => setProductPrice(Number(event.target.value))} /></label>
+              <label className="field product-load-wide"><span>Descripción</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Ej: expansión completa, incluye caja original, estado general, si faltan o sobran cartas..." maxLength={600} /></label>
+              <label className="field product-load-wide"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." /></label>
+              <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim()}>
+                <PackagePlus size={18} />
+                Publicar producto
+              </button>
+            </div>
+            <div className="stock-table">
+              {products.map((product) => (
+                <div key={product.id} className="stock-row product-stock-row">
+                  <span>{product.category}</span>
+                  <span>{product.name}</span>
+                  <span>x{product.quantity}</span>
+                  <strong>{formatMoney(product.price)}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+          <aside className="tool-surface h-fit">
+            <p className="eyebrow">Cuándo usar Productos</p>
+            <div className="publish-tips">
+              <span>Expansión completa con caja.</span>
+              <span>Lote de cartas que no se vende una por una.</span>
+              <span>Figura, tomo, caja, poster o figurita.</span>
+              <span>Producto con una foto y descripción propia.</span>
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
