@@ -196,6 +196,7 @@ export function App() {
             cart={cart}
             addToCart={addToCart}
             addManyToCart={addManyToCart}
+            canBuy={!isLoggedIn || publicSeller.id !== currentSeller.id}
             navigate={navigate}
           />
         )}

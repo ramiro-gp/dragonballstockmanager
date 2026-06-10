@@ -18,6 +18,7 @@ export function PublicStockPage({
   cart,
   addToCart,
   addManyToCart,
+  canBuy,
   navigate,
 }: {
   seller: Seller;
@@ -26,6 +27,7 @@ export function PublicStockPage({
   cart: CartLine[];
   addToCart: (line: CartLine) => void;
   addManyToCart: (lines: CartLine[]) => void;
+  canBuy: boolean;
   navigate: (route: Route) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -135,10 +137,14 @@ export function PublicStockPage({
           />
         </div>
         <div className="search-actions">
-          <button className="secondary-button" onClick={() => addManyToCart(massAddLines)} disabled={!massAddLines.length}>
-            <Wand2 size={18} />
-            Agregar todos los encontrados al carrito
-          </button>
+          {canBuy ? (
+            <button className="secondary-button" onClick={() => addManyToCart(massAddLines)} disabled={!massAddLines.length}>
+              <Wand2 size={18} />
+              Agregar todos los encontrados al carrito
+            </button>
+          ) : (
+            <div className="seller-own-stock-note">Estás viendo tu propio stock publicado.</div>
+          )}
           <div className="view-toggle" aria-label="Modo de vista">
             <button className={clsx(viewMode === "cards" && "active")} onClick={() => { setViewMode("cards"); setCardPage(1); }}>
               <LayoutGrid size={17} />
@@ -149,17 +155,17 @@ export function PublicStockPage({
               Tabla
             </button>
           </div>
-          <button className="cart-jump" onClick={() => navigate("/carrito")}>
+          {canBuy && <button className="cart-jump" onClick={() => navigate("/carrito")}>
             <ShoppingCart size={18} />
             <span>Carrito: {cart.length} ítems · {formatMoney(cartTotal(cart))}</span>
-          </button>
+          </button>}
         </div>
       </div>
 
       {viewMode === "cards" ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {visibleCards.map((items) => (
-            <CardResult key={items[0].number} items={items} addToCart={addToCart} />
+            <CardResult key={items[0].number} items={items} addToCart={addToCart} canBuy={canBuy} />
           ))}
         </div>
       ) : (
@@ -181,7 +187,7 @@ export function PublicStockPage({
               <span>{item.expansion}</span>
               <strong>{formatMoney(item.price)}</strong>
               <span>x{availableQuantity(item)}</span>
-              <button
+              {canBuy && <button
                 className="icon-button small"
                 onClick={() =>
                   addToCart({
@@ -198,7 +204,7 @@ export function PublicStockPage({
                 aria-label="Agregar al carrito"
               >
                 <Plus size={16} />
-              </button>
+              </button>}
             </div>
           ))}
         </div>
@@ -211,7 +217,7 @@ export function PublicStockPage({
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {visibleProducts.map((product) => (
-          <ProductCard key={product.id} product={product} addToCart={addToCart} />
+          <ProductCard key={product.id} product={product} addToCart={addToCart} canBuy={canBuy} />
         ))}
       </div>
       <Pagination page={productPage} pageSize={productPageSize} total={products.length} onPageChange={setProductPage} />

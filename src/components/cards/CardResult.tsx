@@ -2,7 +2,15 @@ import { Plus } from "lucide-react";
 import type { CardStock, CartLine } from "../../lib/types";
 import { availableQuantity, formatMoney, kindLabel } from "../../lib/helpers";
 
-export function CardResult({ items, addToCart }: { items: CardStock[]; addToCart: (line: CartLine) => void }) {
+export function CardResult({
+  items,
+  addToCart,
+  canBuy,
+}: {
+  items: CardStock[];
+  addToCart: (line: CartLine) => void;
+  canBuy: boolean;
+}) {
   return (
     <article className="item-card">
       <div className="flex items-start justify-between gap-3">
@@ -16,27 +24,29 @@ export function CardResult({ items, addToCart }: { items: CardStock[]; addToCart
         {items.map((item) => (
           <div key={item.id} className="variant-row">
             <div>
-              <p>{kindLabel[item.kind]} · {item.variant}</p>
-              <span>x{availableQuantity(item)} disponible · {formatMoney(item.price)}</span>
+              <p>{kindLabel[item.kind]} - {item.variant}</p>
+              <span>x{availableQuantity(item)} disponible - {formatMoney(item.price)}</span>
             </div>
-            <button
-              className="icon-button small"
-              onClick={() =>
-                addToCart({
-                  itemType: "card",
-                  itemId: item.id,
-                  sellerId: item.sellerId,
-                  label: `Carta ${item.number} · ${kindLabel[item.kind]} ${item.variant}`,
-                  unitPrice: item.price,
-                  quantity: 1,
-                  maxQuantity: availableQuantity(item),
-                })
-              }
-              disabled={availableQuantity(item) <= 0}
-              aria-label="Agregar al carrito"
-            >
-              <Plus size={16} />
-            </button>
+            {canBuy && (
+              <button
+                className="icon-button small"
+                onClick={() =>
+                  addToCart({
+                    itemType: "card",
+                    itemId: item.id,
+                    sellerId: item.sellerId,
+                    label: `Carta ${item.number} - ${kindLabel[item.kind]} ${item.variant}`,
+                    unitPrice: item.price,
+                    quantity: 1,
+                    maxQuantity: availableQuantity(item),
+                  })
+                }
+                disabled={availableQuantity(item) <= 0}
+                aria-label="Agregar al carrito"
+              >
+                <Plus size={16} />
+              </button>
+            )}
           </div>
         ))}
       </div>

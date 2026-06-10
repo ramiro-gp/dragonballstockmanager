@@ -22,17 +22,17 @@ export type VariantDraft = {
 };
 
 export const CROMEROS_EXPANSIONS: ExpansionRule[] = [
-  { label: "1", from: 1, to: 129 },
-  { label: "2", from: 130, to: 265 },
-  { label: "3", from: 266, to: 401 },
-  { label: "Ocultas", from: 402, to: 403 },
-  { label: "4", from: 408, to: 543 },
-  { label: "5", from: 544, to: 679 },
-  { label: "6", from: 680, to: 815 },
-  { label: "Personajes", from: 816, to: 951 },
-  { label: "7", from: 952, to: 1087 },
-  { label: "Guerreros 1", from: 1088, to: 1223 },
-  { label: "Guerreros 2", from: 1224, to: 1359 },
+  { label: "Expansión 1", from: 1, to: 129 },
+  { label: "Expansión 2", from: 130, to: 265 },
+  { label: "Expansión 3", from: 266, to: 401 },
+  { label: "Cartas ocultas", from: 402, to: 403 },
+  { label: "Expansión 4", from: 408, to: 543 },
+  { label: "Expansión 5", from: 544, to: 679 },
+  { label: "Expansión 6", from: 680, to: 815 },
+  { label: "Expansión Personajes", from: 816, to: 951 },
+  { label: "Expansión 7", from: 952, to: 1087 },
+  { label: "Expansión Guerreros Legendarios 1", from: 1088, to: 1223 },
+  { label: "Expansión Guerreros Legendarios 2", from: 1224, to: 1359 },
   { label: "Super Batalla 1", from: 1360, to: 1495 },
   { label: "Super Batalla 2", from: 1496, to: 1631 },
   { label: "GT", from: 1632, to: 1760 },
@@ -41,10 +41,10 @@ export const CROMEROS_EXPANSIONS: ExpansionRule[] = [
 ];
 
 const holographicByExpansion: Record<string, number[]> = {
-  Personajes: [816, 817, 818, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 829, 830, 831, 832, 833, 834, 835, 836, 837, 838, 839, 840, 841, 842, 843, 844, 845, 846, 847, 848, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 868, 869, 870, 871, 872, 880, 881, 882, 883, 884, 887, 892, 893, 894, 895, 896, 904, 905, 906, 907, 908, 916, 917, 918, 919, 920, 928, 929, 930, 931, 932, 940, 941, 942, 943, 944],
-  "7": [953, 954, 957, 958, 963, 968, 969, 970, 972, 973, 975, 977, 984, 988, 989, 991, 993, 994, 997, 1006, 1008, 1010, 1019, 1027, 1028, 1029, 1036, 1037, 1038, 1051, 1053, 1055, 1056, 1058, 1065, 1069, 1076, 1078, 1080, 1084],
-  "Guerreros 1": [1088, 1090, 1091, 1092, 1093, 1094, 1098, 1099, 1110, 1111, 1112, 1113, 1123, 1125, 1126, 1127, 1129, 1131, 1134, 1146, 1147, 1148, 1149, 1157, 1161, 1162, 1167, 1169, 1170, 1181, 1182, 1183, 1184, 1197, 1199, 1204, 1207, 1214, 1222, 1223],
-  "Guerreros 2": [1225, 1226, 1236, 1239, 1244, 1245, 1246, 1248, 1249, 1251, 1254, 1259, 1260, 1261, 1262, 1263, 1272, 1275, 1276, 1278, 1280, 1284, 1291, 1298, 1299, 1309, 1320, 1322, 1326, 1329, 1334, 1338, 1339, 1341, 1348, 1350, 1354, 1355, 1359],
+  "Expansión Personajes": [816, 817, 818, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 829, 830, 831, 832, 833, 834, 835, 836, 837, 838, 839, 840, 841, 842, 843, 844, 845, 846, 847, 848, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 868, 869, 870, 871, 872, 880, 881, 882, 883, 884, 887, 892, 893, 894, 895, 896, 904, 905, 906, 907, 908, 916, 917, 918, 919, 920, 928, 929, 930, 931, 932, 940, 941, 942, 943, 944],
+  "Expansión 7": [953, 954, 957, 958, 963, 968, 969, 970, 972, 973, 975, 977, 984, 988, 989, 991, 993, 994, 997, 1006, 1008, 1010, 1019, 1027, 1028, 1029, 1036, 1037, 1038, 1051, 1053, 1055, 1056, 1058, 1065, 1069, 1076, 1078, 1080, 1084],
+  "Expansión Guerreros Legendarios 1": [1088, 1090, 1091, 1092, 1093, 1094, 1098, 1099, 1110, 1111, 1112, 1113, 1123, 1125, 1126, 1127, 1129, 1131, 1134, 1146, 1147, 1148, 1149, 1157, 1161, 1162, 1167, 1169, 1170, 1181, 1182, 1183, 1184, 1197, 1199, 1204, 1207, 1214, 1222, 1223],
+  "Expansión Guerreros Legendarios 2": [1225, 1226, 1236, 1239, 1244, 1245, 1246, 1248, 1249, 1251, 1254, 1259, 1260, 1261, 1262, 1263, 1272, 1275, 1276, 1278, 1280, 1284, 1291, 1298, 1299, 1309, 1320, 1322, 1326, 1329, 1334, 1338, 1339, 1341, 1348, 1350, 1354, 1355, 1359],
   "Super Batalla 1": range(1360, 1495),
   "Super Batalla 2": range(1496, 1631),
   GT: [1632, 1633, 1634, 1637, 1638, 1639, 1642, 1643, 1644, 1647, 1648, 1649, 1652, 1653, 1654, 1657, 1658, 1659, 1662, 1663, 1664, 1667, 1668, 1669, 1681, 1682, 1683, 1693, 1694, 1695, 1705, 1706, 1707, 1717, 1718, 1719, 1729, 1730, 1731, 1741, 1742],
@@ -53,22 +53,22 @@ const holographicByExpansion: Record<string, number[]> = {
 };
 
 const variantRules: Record<string, VariantRule> = {
-  Personajes: {
+  "Expansión Personajes": {
     kinds: ["comun", "fluor", "holo"],
     fluor: ["Fluor"],
     holo: ["Dorado", "Plateado", "Dorado opaco", "Plateado opaco", "Rojo", "Azul", "Verde", "Violeta", "Amarillo", "Bronce", "Patrones", "Arcoiris", "Tornasolado"],
   },
-  "7": {
+  "Expansión 7": {
     kinds: ["comun", "holo"],
     fluor: [],
     holo: ["Dorado", "Plateado", "Dorado opaco", "Plateado opaco", "Rojo", "Azul", "Verde", "Violeta", "Amarillo", "Bronce", "Naranja"],
   },
-  "Guerreros 1": {
+  "Expansión Guerreros Legendarios 1": {
     kinds: ["comun", "holo"],
     fluor: [],
     holo: ["Patrones", "Rojo", "Amarillo", "Plateado", "Verde", "Azul", "Violeta", "Turquesa"],
   },
-  "Guerreros 2": {
+  "Expansión Guerreros Legendarios 2": {
     kinds: ["fluor", "holo"],
     fluor: ["Rosa", "Naranja", "Verde"],
     holo: ["Rojo", "Azul", "Verde", "Amarillo", "Turquesa", "Violeta"],
