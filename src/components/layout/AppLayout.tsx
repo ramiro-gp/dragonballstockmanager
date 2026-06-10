@@ -1,0 +1,212 @@
+import { useState, type ReactNode } from "react";
+import clsx from "clsx";
+import {
+  ArrowLeft,
+  BarChart3,
+  ClipboardList,
+  Home,
+  LogIn,
+  LogOut,
+  Menu,
+  Moon,
+  PackagePlus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  ShoppingCart,
+  Sun,
+  UserPlus,
+  X,
+} from "lucide-react";
+import type { Route } from "../../app/routes";
+import type { Theme } from "../../lib/types";
+import { formatMoney } from "../../lib/helpers";
+import { Donation, MercadoPagoButton } from "../shared/Donation";
+import { Brand } from "./Brand";
+
+const APP_VERSION = "v0.2.0";
+
+export function AppLayout({
+  children,
+  route,
+  navigate,
+  goBack,
+  theme,
+  setTheme,
+  cartCount,
+  cartTotalValue,
+  balanceValue,
+  isLoggedIn,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  logout,
+}: {
+  children: ReactNode;
+  route: Route;
+  navigate: (route: Route) => void;
+  goBack: () => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  cartCount: number;
+  cartTotalValue: number;
+  balanceValue: number;
+  isLoggedIn: boolean;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (value: boolean) => void;
+  logout: () => void;
+}) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const nav = [
+    { route: "/", label: "Stock", icon: Home },
+    { route: "/panel", label: "Panel", icon: BarChart3 },
+    { route: "/carga", label: "Carga", icon: PackagePlus },
+    { route: "/ventas", label: "Ventas", icon: ClipboardList },
+    { route: "/ajustes", label: "Ajustes", icon: Settings },
+    { route: "/crear-vendedor", label: "Crear vendedor", icon: UserPlus },
+  ] as const;
+  const canGoBack = route !== "/";
+
+  function go(routeToOpen: Route) {
+    navigate(routeToOpen);
+    setMobileMenuOpen(false);
+  }
+
+  return (
+    <div className="app-shell bg-[var(--bg)] text-[var(--text)]">
+      <header className="app-header">
+        <div className="header-left">
+          <button className="brand-button hidden sm:block" onClick={() => navigate("/")} title="Esto es un scouter XD">
+            <Brand compact />
+          </button>
+          {isLoggedIn && (
+            <button className="icon-button hidden lg:inline-flex" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label="Alternar sidebar">
+              {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            </button>
+          )}
+          <button className="icon-button sm:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Menu">
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+          {canGoBack && (
+            <button className="back-button" onClick={goBack}>
+              <ArrowLeft size={17} />
+              Volver
+            </button>
+          )}
+        </div>
+        <div className="header-actions">
+          {isLoggedIn && <span className={clsx("balance-pill", balanceValue >= 0 ? "positive" : "negative")}>Balance {formatMoney(balanceValue)}</span>}
+          {!isLoggedIn && <button className="seller-button primary-cta" onClick={() => navigate("/quiero-vender")}>Quiero ser vendedor</button>}
+          <button className="cart-button" onClick={() => navigate("/carrito")} aria-label="Abrir carrito">
+            <ShoppingCart size={18} />
+            <span>{cartCount}</span>
+            <strong className="hidden sm:inline">{formatMoney(cartTotalValue)}</strong>
+          </button>
+          <button className="icon-button hidden sm:inline-flex" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Cambiar tema">
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          {isLoggedIn ? (
+            <button className="icon-button hidden sm:inline-flex" onClick={logout} aria-label="Salir">
+              <LogOut size={18} />
+            </button>
+          ) : (
+            <button className="login-button hidden sm:inline-flex" onClick={() => navigate("/login")}>
+              <LogIn size={17} />
+              Login
+            </button>
+          )}
+        </div>
+      </header>
+
+      {isLoggedIn && (
+        <aside className={clsx("app-sidebar", sidebarCollapsed && "collapsed")}>
+          <nav className="space-y-2">
+            {nav.map((item) => (
+              <button
+                key={item.route}
+                onClick={() => navigate(item.route)}
+                className={clsx("nav-button", route === item.route && "active")}
+                title={sidebarCollapsed ? item.label : undefined}
+              >
+                <item.icon size={19} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+          {!sidebarCollapsed && (
+            <div className="sidebar-support">
+              <Donation />
+            </div>
+          )}
+        </aside>
+      )}
+
+      {mobileMenuOpen && (
+        <div className="mobile-menu-panel">
+          <div className="mobile-menu-head">
+            <Brand compact />
+            <span>{isLoggedIn ? "Menú vendedor" : "Menú"}</span>
+          </div>
+          <div className="mobile-menu-list">
+            {isLoggedIn ? (
+              nav.map((item) => (
+                <button key={item.route} onClick={() => go(item.route)} className={clsx("mobile-menu-item", route === item.route && "active")}>
+                  <item.icon size={18} />
+                  {item.label}
+                </button>
+              ))
+            ) : (
+              <>
+                <button className="mobile-menu-item" onClick={() => go("/")}>Stock</button>
+                <button className="mobile-menu-item primary" onClick={() => go("/quiero-vender")}>Quiero ser vendedor</button>
+                <button className="mobile-menu-item" onClick={() => go("/login")}><LogIn size={18} /> Login</button>
+              </>
+            )}
+          </div>
+          <div className="mobile-menu-actions">
+            <button className="secondary-button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              Cambiar tema
+            </button>
+            {isLoggedIn && (
+              <button className="secondary-button" onClick={logout}>
+                <LogOut size={18} />
+                Salir
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <main className={clsx("app-main", isLoggedIn && "with-sidebar", sidebarCollapsed && "sidebar-collapsed")}>
+        <div className="app-content mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+          {children}
+          <AppFooter navigate={navigate} />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function AppFooter({ navigate }: { navigate: (route: Route) => void }) {
+  return (
+    <footer className="app-footer">
+      <div className="footer-identity">
+        <Brand compact />
+        <div>
+          <p>Todos los derechos reservados. Desarrollado por <a href="https://ramirogp.me" target="_blank" rel="noreferrer">Ramiro</a>.</p>
+          <span className="app-version">{APP_VERSION}</span>
+        </div>
+      </div>
+      <div className="footer-stack">
+        <div className="footer-actions donation-actions">
+          <span>Ayudame con una donación</span>
+          <a className="small-button subtle" href="https://cafecito.app/ramitag" target="_blank" rel="noreferrer">Cafecito</a>
+          <MercadoPagoButton className="small-button subtle" />
+        </div>
+        <div className="footer-actions vendor-footer-action">
+          <button className="primary-button compact" onClick={() => navigate("/quiero-vender")}>Quiero ser vendedor</button>
+        </div>
+      </div>
+    </footer>
+  );
+}

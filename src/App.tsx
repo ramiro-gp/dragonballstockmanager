@@ -1,0 +1,215 @@
+import { useEffect, useState } from "react";
+import clsx from "clsx";
+import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
+import { AppLayout } from "./components/layout/AppLayout";
+import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
+import { cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
+import type { CardStock, CartLine, Purchase, Sale, SaleStatus, Theme } from "./lib/types";
+import { CartPage } from "./pages/CartPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { LoginPage } from "./pages/LoginPage";
+import { CreateSellerPage } from "./pages/CreateSellerPage";
+import { PublicStockPage } from "./pages/PublicStockPage";
+import { SalesPage } from "./pages/SalesPage";
+import { SellPage } from "./pages/SellPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { StockManagerPage } from "./pages/StockManagerPage";
+import { SubscriptionExpiredPage } from "./pages/SubscriptionExpiredPage";
+
+const currentSeller = sellers[0];
+
+export function App() {
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [route, setRoute] = useState<Route>(getCurrentRoute());
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [stock, setStock] = useState<CardStock[]>(initialStock);
+  const [products] = useState(initialProducts);
+  const [sales, setSales] = useState<Sale[]>(initialSales);
+  const [purchases] = useState<Purchase[]>(initialPurchases);
+  const [cart, setCart] = useState<CartLine[]>([]);
+
+  const sellerStock = stock.filter((item) => item.sellerId === currentSeller.id);
+  const sellerProducts = products.filter((item) => item.sellerId === currentSeller.id);
+  const sellerSales = sales.filter((sale) => sale.sellerId === currentSeller.id);
+  const sellerPurchases = purchases.filter((purchase) => purchase.sellerId === currentSeller.id);
+  const revenue = sellerSales.filter((sale) => sale.status === "confirmada").reduce((sum, sale) => sum + saleTotal(sale), 0);
+  const spent = sellerPurchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0);
+  const visibleRoute = !isLoggedIn && privateRoutes.includes(route) ? "/login" : route;
+  const sellerInactive = isLoggedIn && currentSeller.status === "inactive";
+
+  useEffect(() => {
+    const onPopState = () => setRoute(getCurrentRoute());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  function navigate(nextRoute: Route) {
+    window.history.pushState({}, "", nextRoute);
+    setRoute(nextRoute);
+  }
+
+  function goBack() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    navigate("/");
+  }
+
+  function addToCart(line: CartLine) {
+    setCart((current) => mergeCartLines(current, [line]));
+  }
+
+  function addManyToCart(lines: CartLine[]) {
+    setCart((current) => mergeCartLines(current, lines));
+  }
+
+  function createPendingSale(customerName: string, customerWhatsapp: string, note: string, orderNumber: string) {
+    if (!cart.length) return;
+    const sale: Sale = {
+      id: crypto.randomUUID(),
+      orderNumber,
+      sellerId: currentSeller.id,
+      customerName: customerName || "Cliente sin nombre",
+      customerWhatsapp,
+      note,
+      status: "pendiente",
+      stockApplied: false,
+      createdAt: new Date().toISOString().slice(0, 10),
+      shippingPending: true,
+      lines: cart.map((line) => ({ ...line, finalUnitPrice: line.unitPrice })),
+      payments: [],
+    };
+    setSales((current) => [sale, ...current]);
+  }
+
+  function applySaleStock(sale: Sale, direction: 1 | -1) {
+    setStock((current) =>
+      current.map((item) => {
+        const saleQuantity = sale.lines
+          .filter((line) => line.itemType === "card" && line.itemId === item.id)
+          .reduce((sum, line) => sum + line.quantity, 0);
+        if (!saleQuantity) return item;
+        return { ...item, reserved: Math.max(0, item.reserved + saleQuantity * direction) };
+      }),
+    );
+  }
+
+  function changeSaleStatus(saleId: string, status: SaleStatus) {
+    const sale = sales.find((item) => item.id === saleId);
+    if (!sale) return;
+    const nextShouldApply = shouldApplyStock(status);
+
+    if (nextShouldApply && !sale.stockApplied) applySaleStock(sale, 1);
+    if (!nextShouldApply && sale.stockApplied) applySaleStock(sale, -1);
+
+    setSales((current) =>
+      current.map((item) =>
+        item.id === saleId ? { ...item, status, stockApplied: nextShouldApply } : item,
+      ),
+    );
+  }
+
+  function updateSaleLine(saleId: string, lineIndex: number, quantity: number, price: number) {
+    setSales((current) =>
+      current.map((sale) => {
+        if (sale.id !== saleId || sale.stockApplied) return sale;
+        return {
+          ...sale,
+          lines: sale.lines.map((line, index) =>
+            index === lineIndex
+              ? { ...line, quantity: Math.max(1, quantity), finalUnitPrice: Math.max(0, price) }
+              : line,
+          ),
+        };
+      }),
+    );
+  }
+
+  return (
+    <div className={clsx("app", theme)}>
+      <AppLayout
+        route={visibleRoute}
+        navigate={navigate}
+        goBack={goBack}
+        theme={theme}
+        setTheme={setTheme}
+        cartCount={cart.reduce((sum, line) => sum + line.quantity, 0)}
+        cartTotalValue={cartTotal(cart)}
+        balanceValue={revenue - spent}
+        isLoggedIn={isLoggedIn}
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
+        logout={() => {
+          setIsLoggedIn(false);
+          navigate("/");
+        }}
+      >
+        {visibleRoute === "/" && (
+          <PublicStockPage
+            seller={currentSeller}
+            stock={sellerStock}
+            products={sellerProducts}
+            cart={cart}
+            addToCart={addToCart}
+            addManyToCart={addManyToCart}
+            navigate={navigate}
+          />
+        )}
+        {visibleRoute === "/quiero-vender" && <SellPage />}
+        {visibleRoute === "/carrito" && (
+          <CartPage
+            cart={cart}
+            setCart={setCart}
+            sellerName={currentSeller.name}
+            sellerWhatsapp={currentSeller.whatsapp}
+            createPendingSale={createPendingSale}
+          />
+        )}
+        {visibleRoute === "/login" && (
+          <LoginPage
+            navigate={navigate}
+            login={() => {
+              setIsLoggedIn(true);
+              navigate("/panel");
+            }}
+          />
+        )}
+        {sellerInactive && visibleRoute !== "/login" && <SubscriptionExpiredPage sellerWhatsapp={currentSeller.whatsapp} />}
+        {!sellerInactive && isLoggedIn && visibleRoute === "/carga" && (
+          <StockManagerPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} />
+        )}
+        {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
+          <SalesPage sales={sellerSales} changeSaleStatus={changeSaleStatus} updateSaleLine={updateSaleLine} />
+        )}
+        {!sellerInactive && isLoggedIn && visibleRoute === "/panel" && <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} />}
+        {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
+          <SettingsPage
+            seller={currentSeller}
+            sellers={sellers}
+            isSuperAdmin={currentSeller.role === "admin"}
+            navigateCreateSeller={() => navigate("/crear-vendedor")}
+          />
+        )}
+        {!sellerInactive && isLoggedIn && visibleRoute === "/crear-vendedor" && <CreateSellerPage />}
+      </AppLayout>
+    </div>
+  );
+}
+
+function mergeCartLines(current: CartLine[], additions: CartLine[]) {
+  const nextSellerId = additions[0]?.sellerId;
+  const currentSellerId = current[0]?.sellerId;
+  const baseCart = nextSellerId && currentSellerId && nextSellerId !== currentSellerId ? [] : current;
+
+  return additions.reduce<CartLine[]>((acc, line) => {
+    const existing = acc.find((item) => item.itemId === line.itemId);
+    if (!existing) return [...acc, { ...line, quantity: Math.min(line.quantity, line.maxQuantity) }];
+    return acc.map((item) =>
+      item.itemId === line.itemId
+        ? { ...item, quantity: Math.min(item.maxQuantity, item.quantity + line.quantity) }
+        : item,
+    );
+  }, baseCart);
+}
