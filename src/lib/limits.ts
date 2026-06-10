@@ -14,7 +14,7 @@ export const SEARCH_FILTERS = {
   kinds: ["todas", "comun", "fluor", "holo"],
   variants: [
     "todas",
-    "base",
+    "Base",
     "azul",
     "verde",
     "rojo",

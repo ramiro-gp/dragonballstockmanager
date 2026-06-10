@@ -814,12 +814,12 @@ select:focus-visible {
   justify-content: space-between;
   gap: 0.75rem;
   width: 100%;
-  margin-top: 1rem;
+  min-height: 44px;
   border: 1px solid color-mix(in srgb, var(--orange) 38%, var(--line));
   border-radius: 8px;
   background: color-mix(in srgb, var(--orange) 10%, var(--panel));
   color: var(--text);
-  padding: 0.85rem 1rem;
+  padding: 0 1rem;
   font-weight: 900;
   text-decoration: none;
 }
@@ -837,6 +837,7 @@ select:focus-visible {
   border-radius: 8px;
   background: var(--soft);
   padding: 0.35rem;
+  min-height: 44px;
 }
 
 .view-toggle button {
@@ -980,6 +981,11 @@ select:focus-visible {
 .sale-line input {
   min-height: 42px;
   padding: 0 0.85rem;
+}
+
+.field select[multiple] {
+  min-height: 96px;
+  padding: 0.55rem;
 }
 
 .field textarea,
@@ -1202,6 +1208,32 @@ textarea.input {
 
 .product-stock-row {
   grid-template-columns: 100px 1fr auto auto;
+}
+
+.manage-row {
+  display: grid;
+  grid-template-columns: 72px 82px minmax(110px, 1fr) minmax(140px, 1fr) 84px 104px 36px;
+  gap: 0.55rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 0.65rem;
+}
+
+.manage-row input,
+.manage-row select {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 0 0.6rem;
+}
+
+.product-manage-row {
+  grid-template-columns: 120px minmax(160px, 1fr) 84px 104px 36px;
 }
 
 .status-button {
@@ -1630,7 +1662,9 @@ textarea.input {
   }
 
   .assisted-row,
-  .assisted-row.header {
+  .assisted-row.header,
+  .manage-row,
+  .product-manage-row {
     grid-template-columns: 1fr;
   }
 
@@ -1739,7 +1773,7 @@ textarea.input {
   }
 
   .search-actions {
-    grid-template-columns: max-content max-content 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: center;
   }
 

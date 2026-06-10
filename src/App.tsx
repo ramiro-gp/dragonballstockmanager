@@ -17,17 +17,26 @@ import { StockManagerPage } from "./pages/StockManagerPage";
 import { SubscriptionExpiredPage } from "./pages/SubscriptionExpiredPage";
 
 const currentSeller = sellers[0];
+const STORAGE_KEYS = {
+  theme: "dbsm.theme",
+  loggedIn: "dbsm.loggedIn",
+  sidebarCollapsed: "dbsm.sidebarCollapsed",
+  stock: "dbsm.stock",
+  products: "dbsm.products",
+  sales: "dbsm.sales",
+  cart: "dbsm.cart",
+} as const;
 
 export function App() {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>(() => readStorage(STORAGE_KEYS.theme, "dark"));
   const [route, setRoute] = useState<Route>(getCurrentRoute());
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [stock, setStock] = useState<CardStock[]>(initialStock);
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [sales, setSales] = useState<Sale[]>(initialSales);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => readStorage(STORAGE_KEYS.loggedIn, false));
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage(STORAGE_KEYS.sidebarCollapsed, false));
+  const [stock, setStock] = useState<CardStock[]>(() => readStorage(STORAGE_KEYS.stock, initialStock));
+  const [products, setProducts] = useState<Product[]>(() => readStorage(STORAGE_KEYS.products, initialProducts));
+  const [sales, setSales] = useState<Sale[]>(() => readStorage(STORAGE_KEYS.sales, initialSales));
   const [purchases] = useState<Purchase[]>(initialPurchases);
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(() => readStorage(STORAGE_KEYS.cart, []));
 
   const publicSeller = getPublicSeller(route, sellers) ?? currentSeller;
   const sellerStock = stock.filter((item) => item.sellerId === currentSeller.id);
@@ -47,6 +56,14 @@ export function App() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  useEffect(() => writeStorage(STORAGE_KEYS.theme, theme), [theme]);
+  useEffect(() => writeStorage(STORAGE_KEYS.loggedIn, isLoggedIn), [isLoggedIn]);
+  useEffect(() => writeStorage(STORAGE_KEYS.sidebarCollapsed, sidebarCollapsed), [sidebarCollapsed]);
+  useEffect(() => writeStorage(STORAGE_KEYS.stock, stock), [stock]);
+  useEffect(() => writeStorage(STORAGE_KEYS.products, products), [products]);
+  useEffect(() => writeStorage(STORAGE_KEYS.sales, sales), [sales]);
+  useEffect(() => writeStorage(STORAGE_KEYS.cart, cart), [cart]);
 
   function navigate(nextRoute: Route) {
     window.history.pushState({}, "", nextRoute);
@@ -235,4 +252,21 @@ function getPublicSeller(route: Route, allSellers: Seller[]) {
   if (!isSellerStockRoute(route)) return allSellers.find((seller) => seller.isMain);
   const slug = route.split("/")[1];
   return allSellers.find((seller) => seller.slug === slug);
+}
+
+function readStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStorage(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Local storage can be unavailable in private contexts; the mock app still works in memory.
+  }
 }

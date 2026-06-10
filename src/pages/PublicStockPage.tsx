@@ -38,7 +38,7 @@ export function PublicStockPage({
   const results = stock.filter((item) => {
     const byNumber = numbers.length ? numbers.includes(item.number.toUpperCase()) : true;
     const byKind = !kinds.length || kinds.includes(item.kind);
-    const byVariant = !variants.length || variants.includes(item.variant.toLowerCase());
+    const byVariant = !variants.length || variants.map((value) => value.toLowerCase()).includes(item.variant.toLowerCase());
     const byExpansion = !expansions.length || expansions.some((selected) => item.expansion.toLowerCase().includes(selected.toLowerCase()));
     return byNumber && byKind && byVariant && byExpansion && item.quantity > 0;
   });
@@ -134,12 +134,12 @@ export function PublicStockPage({
         <div className="search-actions">
           <button className="secondary-button" onClick={() => addManyToCart(massAddLines)} disabled={!massAddLines.length}>
             <Wand2 size={18} />
-            Agregar encontrados
+            Agregar todos los encontrados al carrito
           </button>
           <div className="view-toggle" aria-label="Modo de vista">
             <button className={clsx(viewMode === "cards" && "active")} onClick={() => { setViewMode("cards"); setCardPage(1); }}>
               <LayoutGrid size={17} />
-              Cards
+              Grilla
             </button>
             <button className={clsx(viewMode === "table" && "active")} onClick={() => { setViewMode("table"); setCardPage(1); }}>
               <List size={17} />

@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { Layers3, Package, PackagePlus } from "lucide-react";
+import { Layers3, Package, PackagePlus, Trash2 } from "lucide-react";
 import type { CardKind, CardStock, Product } from "../lib/types";
 import { availableQuantity, formatMoney, groupNumbers, kindLabel, parseCardList, parseRange } from "../lib/helpers";
+import { SEARCH_FILTERS } from "../lib/limits";
 
 type AssistedRow = {
   key: string;
@@ -21,6 +22,8 @@ type VariantOverride = {
   variant?: string;
   price?: number;
 };
+
+const defaultVariants = SEARCH_FILTERS.variants.filter((item) => item !== "todas");
 
 export function StockManagerPage({
   sellerId,
@@ -42,13 +45,13 @@ export function StockManagerPage({
   const [to, setTo] = useState("12");
   const [except, setExcept] = useState("4, 7");
   const [kind, setKind] = useState<CardKind>("comun");
-  const [variant, setVariant] = useState("Base");
+  const [selectedVariants, setSelectedVariants] = useState<string[]>(["Base"]);
   const [expansion, setExpansion] = useState("Sin expansión");
   const [variantOverrides, setVariantOverrides] = useState("1110: verde\n1134: glitter\n504F: fantasma");
   const [price, setPrice] = useState(300);
   const [rowEdits, setRowEdits] = useState<Record<string, RowEdit>>({});
   const [productName, setProductName] = useState("");
-  const [productCategory, setProductCategory] = useState<Product["category"]>("figura");
+  const [productCategory, setProductCategory] = useState<Product["category"]>("lote");
   const [productDescription, setProductDescription] = useState("");
   const [productQuantity, setProductQuantity] = useState(1);
   const [productPrice, setProductPrice] = useState(0);
@@ -61,21 +64,39 @@ export function StockManagerPage({
     return Object.entries(grouped).map(([number, quantity]) => {
       const override = overrideMap.get(number.toUpperCase());
       const baseKind = override?.kind ?? kind;
-      const baseVariant = override?.variant ?? variant;
+      const variants = override?.variant ? [override.variant] : selectedVariants;
       const basePrice = override?.price ?? price;
-      const baseRow: AssistedRow = {
-        key: `${number}-${baseKind}-${baseVariant.toLowerCase()}`,
-        number,
-        quantity,
-        kind: baseKind,
-        variant: baseVariant,
-        expansion,
-        price: basePrice,
-      };
-      const edit = rowEdits[baseRow.key] ?? {};
-      return { ...baseRow, ...edit };
-    });
-  }, [expansion, grouped, kind, overrideMap, price, rowEdits, variant]);
+      return variants.map((baseVariant) => {
+        const baseRow: AssistedRow = {
+          key: `${number}-${baseKind}-${baseVariant.toLowerCase()}`,
+          number,
+          quantity,
+          kind: baseKind,
+          variant: baseVariant,
+          expansion,
+          price: basePrice,
+        };
+        const edit = rowEdits[baseRow.key] ?? {};
+        return { ...baseRow, ...edit };
+      });
+    }).flat();
+  }, [expansion, grouped, kind, overrideMap, price, rowEdits, selectedVariants]);
+
+  function updateCardStock(itemId: string, patch: Partial<Pick<CardStock, "quantity" | "price" | "variant" | "expansion">>) {
+    setStock((current) => current.map((item) => item.id === itemId ? { ...item, ...patch } : item));
+  }
+
+  function deleteCardStock(itemId: string) {
+    setStock((current) => current.filter((item) => item.id !== itemId));
+  }
+
+  function updateProduct(productId: string, patch: Partial<Pick<Product, "quantity" | "price" | "name" | "category">>) {
+    setProducts((current) => current.map((product) => product.id === productId ? { ...product, ...patch } : product));
+  }
+
+  function deleteProduct(productId: string) {
+    setProducts((current) => current.filter((product) => product.id !== productId));
+  }
 
   function loadStock() {
     const rows = assistedRows.filter((row) => row.quantity > 0);
@@ -144,7 +165,8 @@ export function StockManagerPage({
         <div>
           <p className="eyebrow">Publicar</p>
           <h2 className="panel-title">¿Qué vas a poner a la venta?</h2>
-          <p className="mt-2 text-sm text-[var(--muted)]">Publicar agrega el ítem al stock visible para compradores. Usá Cartas para unidades sueltas y Productos para cajas, lotes, figuras, tomos o una expansión completa.</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Usá Cartas para unidades sueltas y Productos para cajas, lotes, figuras, tomos o una expansión completa.</p>
+          <p className="mt-2 text-xs font-bold text-[var(--muted)]">Al publicar, sumás el producto a tu stock disponible para que los compradores puedan agregarlo al carrito.</p>
         </div>
         <div className="publish-mode-tabs">
           <button className={clsx(publishMode === "cards" && "active")} onClick={() => setPublishMode("cards")}>
@@ -180,9 +202,9 @@ export function StockManagerPage({
               )}
               <div className="grid grid-cols-2 gap-3">
                 <label className="field"><span>Tipo</span><select value={kind} onChange={(event) => setKind(event.target.value as CardKind)}><option value="comun">Común</option><option value="fluor">Fluor</option><option value="holo">Holo</option></select></label>
-                <label className="field"><span>Variante</span><input value={variant} onChange={(event) => setVariant(event.target.value)} /></label>
+                <label className="field"><span>Variantes</span><select multiple value={selectedVariants} onChange={(event) => setSelectedVariants(Array.from(event.target.selectedOptions, (option) => option.value))}>{defaultVariants.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
               </div>
-              <label className="field"><span>Expansión</span><input value={expansion} onChange={(event) => setExpansion(event.target.value)} maxLength={80} /></label>
+              <label className="field"><span>Expansión</span><select value={expansion} onChange={(event) => setExpansion(event.target.value)}>{SEARCH_FILTERS.expansions.filter((item) => item !== "todas").map((option) => <option key={option} value={option}>{option}</option>)}<option value="Sin expansión">Sin expansión</option></select></label>
               <label className="field"><span>Precio default</span><input type="number" value={price} onChange={(event) => setPrice(Number(event.target.value))} /></label>
               <button className="primary-button" onClick={loadStock} disabled={!assistedRows.length}><PackagePlus size={18} />Publicar {previewNumbers.length} cartas</button>
             </div>
@@ -217,7 +239,17 @@ export function StockManagerPage({
             </div>
             <div className="section-heading mt-6"><h3>Cartas publicadas</h3><span>{stock.length} variantes</span></div>
             <div className="stock-table">
-              {stock.map((item) => <div key={item.id} className="stock-row"><span>{item.number}</span><span>{kindLabel[item.kind]} · {item.variant}</span><span>x{availableQuantity(item)} / {item.quantity}</span><strong>{formatMoney(item.price)}</strong></div>)}
+              {stock.map((item) => (
+                <div key={item.id} className="manage-row">
+                  <strong>{item.number}</strong>
+                  <span>{kindLabel[item.kind]}</span>
+                  <input value={item.variant} onChange={(event) => updateCardStock(item.id, { variant: event.target.value })} />
+                  <input value={item.expansion} onChange={(event) => updateCardStock(item.id, { expansion: event.target.value })} />
+                  <input type="number" min={0} value={item.quantity} onChange={(event) => updateCardStock(item.id, { quantity: Number(event.target.value) })} />
+                  <input type="number" min={0} value={item.price} onChange={(event) => updateCardStock(item.id, { price: Number(event.target.value) })} />
+                  <button className="ghost-icon" onClick={() => deleteCardStock(item.id)} aria-label="Eliminar carta"><Trash2 size={16} /></button>
+                </div>
+              ))}
             </div>
           </section>
 
@@ -254,7 +286,7 @@ export function StockManagerPage({
               <span>{products.length} productos</span>
             </div>
             <div className="product-load-grid mt-4">
-              <label className="field"><span>Nombre</span><input value={productName} onChange={(event) => setProductName(event.target.value)} placeholder="Expansión completa con caja" maxLength={80} /></label>
+              <label className="field"><span>Producto</span><input value={productName} onChange={(event) => setProductName(event.target.value)} placeholder="Expansión completa con caja" maxLength={80} /></label>
               <label className="field">
                 <span>Categoría</span>
                 <select value={productCategory} onChange={(event) => setProductCategory(event.target.value as Product["category"])}>
@@ -263,6 +295,7 @@ export function StockManagerPage({
                   <option value="figura">Figura</option>
                   <option value="tomo">Tomo</option>
                   <option value="figurita">Figurita</option>
+                  <option value="otro">Otro</option>
                 </select>
               </label>
               <label className="field"><span>Cantidad</span><input type="number" min={1} value={productQuantity} onChange={(event) => setProductQuantity(Number(event.target.value))} /></label>
@@ -276,11 +309,19 @@ export function StockManagerPage({
             </div>
             <div className="stock-table">
               {products.map((product) => (
-                <div key={product.id} className="stock-row product-stock-row">
-                  <span>{product.category}</span>
-                  <span>{product.name}</span>
-                  <span>x{product.quantity}</span>
-                  <strong>{formatMoney(product.price)}</strong>
+                <div key={product.id} className="manage-row product-manage-row">
+                  <select value={product.category} onChange={(event) => updateProduct(product.id, { category: event.target.value as Product["category"] })}>
+                    <option value="lote">Lote</option>
+                    <option value="caja">Caja</option>
+                    <option value="figura">Figura</option>
+                    <option value="tomo">Tomo</option>
+                    <option value="figurita">Figurita</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                  <input value={product.name} onChange={(event) => updateProduct(product.id, { name: event.target.value })} />
+                  <input type="number" min={0} value={product.quantity} onChange={(event) => updateProduct(product.id, { quantity: Number(event.target.value) })} />
+                  <input type="number" min={0} value={product.price} onChange={(event) => updateProduct(product.id, { price: Number(event.target.value) })} />
+                  <button className="ghost-icon" onClick={() => deleteProduct(product.id)} aria-label="Eliminar producto"><Trash2 size={16} /></button>
                 </div>
               ))}
             </div>

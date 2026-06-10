@@ -43,11 +43,13 @@ export type CardStock = {
   special?: "fantasma" | "error";
 };
 
+export type ProductCategory = "figura" | "tomo" | "caja" | "lote" | "figurita" | "otro";
+
 export type Product = {
   id: string;
   sellerId: string;
   name: string;
-  category: "figura" | "tomo" | "caja" | "lote" | "figurita";
+  category: ProductCategory;
   description: string;
   quantity: number;
   price: number;
