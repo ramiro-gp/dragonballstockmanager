@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Layers3, Package, PackagePlus } from "lucide-react";
 import { getColorOptions, getCromerosExpansion, getDefaultKind, getKindOptions, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
-import type { CardKind, CardStock, Product, SellerSettings } from "../lib/types";
+import type { CardKind, CardStock, Product, PublishCardInput, PublishProductInput, SellerSettings } from "../lib/types";
 import { groupNumbers, parseCardList, parseRange } from "../lib/helpers";
 
 const defaultImageUrl = "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80";
@@ -15,6 +15,8 @@ export function StockManagerPage({
   setStock,
   products,
   setProducts,
+  onPublishCards,
+  onPublishProduct,
 }: {
   sellerId: string;
   settings: SellerSettings;
@@ -22,6 +24,8 @@ export function StockManagerPage({
   setStock: React.Dispatch<React.SetStateAction<CardStock[]>>;
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  onPublishCards?: (rows: PublishCardInput[]) => Promise<CardStock[] | null>;
+  onPublishProduct?: (product: PublishProductInput) => Promise<Product | null>;
 }) {
   const [publishMode, setPublishMode] = useState<"cards" | "products">("cards");
   const [loadMode, setLoadMode] = useState<"list" | "range">("list");
@@ -32,6 +36,7 @@ export function StockManagerPage({
   const [prices, setPrices] = useState<Record<CardKind, number>>(() => readPublishPrices(sellerId, settings));
   const [variantDrafts, setVariantDrafts] = useState<Record<string, VariantDraft>>({});
   const [publishedMessage, setPublishedMessage] = useState("");
+  const [isPublishing, setIsPublishing] = useState(false);
   const [productName, setProductName] = useState("");
   const [productCategory, setProductCategory] = useState<Product["category"]>("lote");
   const [productDescription, setProductDescription] = useState("");
@@ -104,30 +109,52 @@ export function StockManagerPage({
     });
   }
 
-  function publishCards() {
+  async function publishCards() {
     if (!totalToPublish) return;
-    const rowsToPublish = [
+    const rowsToPublish: PublishCardInput[] = [
       ...Object.entries(commonGroups).map(([number, quantity]) => ({
         number,
+        expansion: getCromerosExpansion(number),
         quantity,
         kind: "comun" as CardKind,
         variant: "Base",
         price: prices.comun,
       })),
-      ...variantDraftList.filter((row) => row.quantity > 0),
+      ...variantDraftList
+        .filter((row) => row.quantity > 0)
+        .map((row) => ({
+          number: row.number,
+          expansion: getCromerosExpansion(row.number),
+          kind: row.kind,
+          variant: row.variant,
+          quantity: row.quantity,
+          price: row.price,
+        })),
     ];
+
+    setIsPublishing(true);
+    const savedRows = onPublishCards ? await onPublishCards(rowsToPublish) : null;
+    setIsPublishing(false);
+
+    if (savedRows) {
+      setStock((current) => [
+        ...current.filter((item) => item.sellerId !== sellerId),
+        ...savedRows,
+      ]);
+      setPublishedMessage(`${totalToPublish} cartas publicadas.`);
+      return;
+    }
 
     setStock((current) => {
       const next = [...current];
       rowsToPublish.forEach((row) => {
-        const expansion = getCromerosExpansion(row.number);
         const existingIndex = next.findIndex(
           (item) =>
             item.sellerId === sellerId &&
             item.number === row.number &&
             item.kind === row.kind &&
             item.variant.toLowerCase() === row.variant.toLowerCase() &&
-            item.expansion === expansion,
+            item.expansion === row.expansion,
         );
         if (existingIndex >= 0) {
           next[existingIndex] = {
@@ -141,7 +168,7 @@ export function StockManagerPage({
           id: crypto.randomUUID(),
           sellerId,
           number: row.number,
-          expansion,
+          expansion: row.expansion,
           kind: row.kind,
           variant: row.variant,
           quantity: row.quantity,
@@ -155,21 +182,26 @@ export function StockManagerPage({
     setPublishedMessage(`${totalToPublish} cartas publicadas.`);
   }
 
-  function loadProduct() {
+  async function loadProduct() {
     const name = productName.trim();
     if (!name || productQuantity <= 0) return;
+
+    const productToPublish: PublishProductInput = {
+      name,
+      category: productCategory,
+      description: productDescription.trim() || "Producto publicado sin descripcion.",
+      quantity: Math.max(1, productQuantity),
+      price: Math.max(0, productPrice),
+      imageUrl: productImageUrl.trim() || defaultImageUrl,
+    };
+
+    setIsPublishing(true);
+    const savedProduct = onPublishProduct ? await onPublishProduct(productToPublish) : null;
+    setIsPublishing(false);
+
     setProducts((current) => [
       ...current,
-      {
-        id: crypto.randomUUID(),
-        sellerId,
-        name,
-        category: productCategory,
-        description: productDescription.trim() || "Producto publicado sin descripción.",
-        quantity: Math.max(1, productQuantity),
-        price: Math.max(0, productPrice),
-        imageUrl: productImageUrl.trim() || defaultImageUrl,
-      },
+      savedProduct ?? { id: crypto.randomUUID(), sellerId, ...productToPublish },
     ]);
     setProductName("");
     setProductDescription("");
@@ -177,7 +209,6 @@ export function StockManagerPage({
     setProductPrice(0);
     setProductImageUrl("");
   }
-
   return (
     <div className="space-y-5">
       <section className="tool-surface publish-hero">
@@ -276,9 +307,9 @@ export function StockManagerPage({
             </div>
             <div className="publish-sheet-footer">
               {publishedMessage && <span className="save-feedback">{publishedMessage}</span>}
-              <button className="primary-button" onClick={publishCards} disabled={!totalToPublish}>
+              <button className="primary-button" onClick={publishCards} disabled={!totalToPublish || isPublishing}>
                 <PackagePlus size={18} />
-                Publicar {totalToPublish} cartas
+                {isPublishing ? "Publicando..." : `Publicar ${totalToPublish} cartas`}
               </button>
             </div>
           </section>
@@ -310,9 +341,9 @@ export function StockManagerPage({
               <label className="field"><span>Precio</span><input type="number" min={0} value={productPrice} onChange={(event) => setProductPrice(Number(event.target.value))} /></label>
               <label className="field product-load-wide"><span>Descripción</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Ej: expansión completa, incluye caja original, estado general, si faltan o sobran cartas..." maxLength={600} /></label>
               <label className="field product-load-wide"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." /></label>
-              <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim()}>
+              <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim() || isPublishing}>
                 <PackagePlus size={18} />
-                Publicar producto
+                {isPublishing ? "Publicando..." : "Publicar producto"}
               </button>
             </div>
           </section>

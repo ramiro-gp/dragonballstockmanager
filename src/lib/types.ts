@@ -51,6 +51,15 @@ export type CardStock = {
   special?: "fantasma" | "error";
 };
 
+export type PublishCardInput = {
+  number: string;
+  expansion: string;
+  kind: CardKind;
+  variant: string;
+  quantity: number;
+  price: number;
+};
+
 export type ProductCategory = "figura" | "tomo" | "caja" | "lote" | "figurita" | "otro";
 
 export type Product = {
@@ -63,6 +72,8 @@ export type Product = {
   price: number;
   imageUrl: string;
 };
+
+export type PublishProductInput = Omit<Product, "id" | "sellerId">;
 
 export type CartLine = {
   itemType: "card" | "product";

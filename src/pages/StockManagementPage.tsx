@@ -21,12 +21,16 @@ export function StockManagementPage({
   setStock,
   products,
   setProducts,
+  onSaveCards,
+  onSaveProducts,
 }: {
   sellerId: string;
   stock: CardStock[];
   setStock: React.Dispatch<React.SetStateAction<CardStock[]>>;
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  onSaveCards?: (rows: CardStock[]) => Promise<CardStock[] | null>;
+  onSaveProducts?: (rows: Product[]) => Promise<Product[] | null>;
 }) {
   const [draftStock, setDraftStock] = useState<CardStock[]>(stock);
   const [draftProducts, setDraftProducts] = useState<Product[]>(products);
@@ -63,18 +67,20 @@ export function StockManagementPage({
     setSavedMessage("");
   }
 
-  function saveCardChanges() {
+  async function saveCardChanges() {
+    const savedRows = onSaveCards ? await onSaveCards(draftStock.map((item) => ({ ...item, sellerId }))) : null;
     setStock((current) => [
       ...current.filter((item) => item.sellerId !== sellerId),
-      ...draftStock.map((item) => ({ ...item, sellerId })),
+      ...(savedRows ?? draftStock.map((item) => ({ ...item, sellerId }))),
     ]);
     setSavedMessage("Cartas guardadas.");
   }
 
-  function saveProductChanges() {
+  async function saveProductChanges() {
+    const savedRows = onSaveProducts ? await onSaveProducts(draftProducts.map((item) => ({ ...item, sellerId }))) : null;
     setProducts((current) => [
       ...current.filter((item) => item.sellerId !== sellerId),
-      ...draftProducts.map((item) => ({ ...item, sellerId })),
+      ...(savedRows ?? draftProducts.map((item) => ({ ...item, sellerId }))),
     ]);
     setSavedMessage("Productos guardados.");
   }

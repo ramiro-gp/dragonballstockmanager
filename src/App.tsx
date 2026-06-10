@@ -5,7 +5,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
 import { cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { supabase } from "./lib/supabase";
-import type { CardStock, CartLine, Product, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerSettings, Theme } from "./lib/types";
+import type { CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerSettings, Theme } from "./lib/types";
 import { CartPage } from "./pages/CartPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -143,6 +143,182 @@ export function App() {
         paymentCvu: settingsData.payment_cvu ?? "",
       });
     }
+
+    await loadSellerInventoryFromSupabase(userId);
+  }
+
+  async function loadSellerInventoryFromSupabase(sellerId: string) {
+    if (!supabase) return;
+
+    const [{ data: cardRows }, { data: productRows }] = await Promise.all([
+      supabase
+        .from("stock_cards")
+        .select("id, seller_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
+        .eq("seller_id", sellerId)
+        .order("card_number", { ascending: true }),
+      supabase
+        .from("stock_products")
+        .select("id, seller_id, category, product_name, description, image_url, quantity, reserved, price_ars, active")
+        .eq("seller_id", sellerId)
+        .order("product_name", { ascending: true }),
+    ]);
+
+    if (cardRows?.length) {
+      const nextCards = cardRows.map(mapSupabaseCard);
+      setStock((current) => [
+        ...current.filter((item) => item.sellerId !== sellerId && item.sellerId !== fallbackSellerId),
+        ...nextCards,
+      ]);
+    }
+
+    if (productRows?.length) {
+      const nextProducts = productRows.map(mapSupabaseProduct);
+      setProducts((current) => [
+        ...current.filter((item) => item.sellerId !== sellerId && item.sellerId !== fallbackSellerId),
+        ...nextProducts,
+      ]);
+    }
+  }
+
+  async function publishCardsToSupabase(rows: PublishCardInput[]) {
+    if (!supabase) return null;
+
+    for (const row of rows) {
+      const cardNumber = Number.parseInt(row.number, 10);
+      if (!Number.isFinite(cardNumber)) continue;
+
+      const { data: existing } = await supabase
+        .from("stock_cards")
+        .select("id, quantity")
+        .eq("seller_id", currentSeller.id)
+        .eq("collection", "cromeros")
+        .eq("card_number", cardNumber)
+        .eq("expansion", row.expansion)
+        .eq("variant_type", row.kind)
+        .eq("color_variant", row.variant)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("stock_cards")
+          .update({
+            quantity: (existing.quantity ?? 0) + row.quantity,
+            price_ars: row.price,
+          })
+          .eq("id", existing.id);
+        continue;
+      }
+
+      await supabase.from("stock_cards").insert({
+        seller_id: currentSeller.id,
+        collection: "cromeros",
+        card_number: cardNumber,
+        expansion: row.expansion,
+        variant_type: row.kind,
+        color_variant: row.variant,
+        quantity: row.quantity,
+        reserved: 0,
+        price_ars: row.price,
+      });
+    }
+
+    const { data: cardRows } = await supabase
+      .from("stock_cards")
+      .select("id, seller_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
+      .eq("seller_id", currentSeller.id)
+      .order("card_number", { ascending: true });
+
+    const nextCards = cardRows?.map(mapSupabaseCard) ?? [];
+    setStock((current) => [
+      ...current.filter((item) => item.sellerId !== currentSeller.id && item.sellerId !== fallbackSellerId),
+      ...nextCards,
+    ]);
+    return nextCards;
+  }
+
+  async function publishProductToSupabase(product: PublishProductInput) {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from("stock_products")
+      .insert({
+        seller_id: currentSeller.id,
+        category: product.category,
+        product_name: product.name,
+        description: product.description,
+        image_url: product.imageUrl,
+        quantity: product.quantity,
+        reserved: 0,
+        price_ars: product.price,
+        active: true,
+      })
+      .select("id, seller_id, category, product_name, description, image_url, quantity, reserved, price_ars, active")
+      .single();
+
+    if (error || !data) return null;
+    return mapSupabaseProduct(data);
+  }
+
+  async function saveManagedCardsToSupabase(rows: CardStock[]) {
+    if (!supabase) return null;
+
+    await supabase.from("stock_cards").delete().eq("seller_id", currentSeller.id);
+
+    const rowsToInsert = rows
+      .map((row) => ({
+        seller_id: currentSeller.id,
+        collection: "cromeros",
+        card_number: Number.parseInt(row.number, 10),
+        expansion: row.expansion,
+        variant_type: row.kind,
+        color_variant: row.variant,
+        quantity: row.quantity,
+        reserved: row.reserved,
+        price_ars: row.price,
+      }))
+      .filter((row) => Number.isFinite(row.card_number));
+
+    if (rowsToInsert.length) {
+      await supabase.from("stock_cards").insert(rowsToInsert);
+    }
+
+    const { data: cardRows } = await supabase
+      .from("stock_cards")
+      .select("id, seller_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
+      .eq("seller_id", currentSeller.id)
+      .order("card_number", { ascending: true });
+
+    return cardRows?.map(mapSupabaseCard) ?? [];
+  }
+
+  async function saveManagedProductsToSupabase(rows: Product[]) {
+    if (!supabase) return null;
+
+    await supabase.from("stock_products").delete().eq("seller_id", currentSeller.id);
+
+    const rowsToInsert = rows.map((row) => ({
+      seller_id: currentSeller.id,
+      category: row.category,
+      product_name: row.name,
+      description: row.description,
+      image_url: row.imageUrl,
+      quantity: row.quantity,
+      reserved: 0,
+      price_ars: row.price,
+      active: true,
+    }));
+
+    if (rowsToInsert.length) {
+      await supabase.from("stock_products").insert(rowsToInsert);
+    }
+
+    const { data: productRows } = await supabase
+      .from("stock_products")
+      .select("id, seller_id, category, product_name, description, image_url, quantity, reserved, price_ars, active")
+      .eq("seller_id", currentSeller.id)
+      .order("product_name", { ascending: true });
+
+    return productRows?.map(mapSupabaseProduct) ?? [];
   }
 
   function normalizeLocalSellerId(fromSellerId: string, toSellerId: string) {
@@ -333,10 +509,27 @@ export function App() {
         )}
         {sellerInactive && visibleRoute !== "/login" && <SubscriptionExpiredPage sellerWhatsapp={currentSeller.whatsapp} />}
         {!sellerInactive && isLoggedIn && visibleRoute === "/carga" && (
-          <StockManagerPage sellerId={currentSeller.id} settings={sellerSettings} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
+          <StockManagerPage
+            sellerId={currentSeller.id}
+            settings={sellerSettings}
+            stock={sellerStock}
+            setStock={setStock}
+            products={sellerProducts}
+            setProducts={setProducts}
+            onPublishCards={publishCardsToSupabase}
+            onPublishProduct={publishProductToSupabase}
+          />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/gestion-stock" && (
-          <StockManagementPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
+          <StockManagementPage
+            sellerId={currentSeller.id}
+            stock={sellerStock}
+            setStock={setStock}
+            products={sellerProducts}
+            setProducts={setProducts}
+            onSaveCards={saveManagedCardsToSupabase}
+            onSaveProducts={saveManagedProductsToSupabase}
+          />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
           <SalesPage sales={sellerSales} stock={sellerStock} products={sellerProducts} changeSaleStatus={changeSaleStatus} updateSaleLine={updateSaleLine} saveSaleLines={saveSaleLines} />
@@ -402,6 +595,52 @@ function mapSupabaseSeller(row: {
     status: row.active ? "active" : "inactive",
     memberSince: row.created_at.slice(0, 10),
     subscriptionPlan: row.role === "owner" ? "owner" : fallbackSeller.subscriptionPlan,
+  };
+}
+
+function mapSupabaseCard(row: {
+  id: string;
+  seller_id: string;
+  card_number: number;
+  expansion: string;
+  variant_type: string;
+  color_variant: string;
+  quantity: number;
+  reserved: number;
+  price_ars: number;
+}): CardStock {
+  return {
+    id: row.id,
+    sellerId: row.seller_id,
+    number: String(row.card_number),
+    expansion: row.expansion,
+    kind: row.variant_type as CardKind,
+    variant: row.color_variant,
+    quantity: row.quantity,
+    reserved: row.reserved,
+    price: row.price_ars,
+  };
+}
+
+function mapSupabaseProduct(row: {
+  id: string;
+  seller_id: string;
+  category: string;
+  product_name: string;
+  description: string | null;
+  image_url: string | null;
+  quantity: number;
+  price_ars: number;
+}): Product {
+  return {
+    id: row.id,
+    sellerId: row.seller_id,
+    name: row.product_name,
+    category: row.category as Product["category"],
+    description: row.description ?? "",
+    quantity: row.quantity,
+    price: row.price_ars,
+    imageUrl: row.image_url ?? "",
   };
 }
 
