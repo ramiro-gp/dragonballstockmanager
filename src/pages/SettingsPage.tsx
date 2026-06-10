@@ -19,8 +19,8 @@ export function SettingsPage({
         <h2 className="panel-title">Datos del vendedor</h2>
         <div className="mt-4 grid gap-3">
           <label className="field"><span>Nombre visible</span><input defaultValue={seller.name} maxLength={APP_LIMITS.sellerDisplayNameMaxLength} /></label>
-          <label className="field"><span>Email</span><input defaultValue="ramiro@dbstock.app" maxLength={80} /></label>
-          <label className="field"><span>WhatsApp</span><input defaultValue="+54 9 11 51354489" maxLength={24} /></label>
+          <label className="field"><span>Email</span><input defaultValue="vendedor@dbstock.app" maxLength={80} /></label>
+          <label className="field"><span>WhatsApp</span><input defaultValue={seller.whatsapp} maxLength={24} /></label>
           <label className="field"><span>Nueva contraseña</span><input type="password" placeholder="Opcional" maxLength={120} /></label>
         </div>
       </section>

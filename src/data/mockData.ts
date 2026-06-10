@@ -1,11 +1,14 @@
 import type { CardStock, Product, Sale, Seller } from "../lib/types";
 
+const mainSellerWhatsapp = import.meta.env.VITE_MAIN_SELLER_WHATSAPP || "+5491100000000";
+const secondarySellerWhatsapp = import.meta.env.VITE_SECONDARY_SELLER_WHATSAPP || "+5491100000001";
+
 export const sellers: Seller[] = [
   {
     id: "seller-ramiro",
     name: "Ramiro",
     slug: "ramiro",
-    whatsapp: "+5491151354489",
+    whatsapp: mainSellerWhatsapp,
     role: "admin",
     isMain: true,
     status: "active",
@@ -19,7 +22,7 @@ export const sellers: Seller[] = [
     id: "seller-capsule",
     name: "Capsule Cards",
     slug: "capsule-cards",
-    whatsapp: "+5491100000000",
+    whatsapp: secondarySellerWhatsapp,
     role: "seller",
     isMain: false,
     status: "inactive",

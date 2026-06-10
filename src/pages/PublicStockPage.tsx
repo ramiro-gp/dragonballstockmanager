@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { Filter, ShoppingCart, ShieldCheck, Truck, Wand2 } from "lucide-react";
+import { Check, ChevronDown, Filter, ShoppingCart, ShieldCheck, Truck, Wand2 } from "lucide-react";
 import type { Route } from "../app/routes";
 import type { CardStock, CartLine, Product, Seller } from "../lib/types";
 import { availableQuantity, cartTotal, formatMoney, kindLabel, parseCardList } from "../lib/helpers";
@@ -172,6 +172,9 @@ function MultiFilter({
   selected: string[];
   setSelected: (next: string[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const label = selected.length ? `${selected.length} seleccionada${selected.length === 1 ? "" : "s"}` : "Todas";
+
   function toggle(option: string) {
     setSelected(selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option]);
   }
@@ -182,13 +185,23 @@ function MultiFilter({
         <span>{title}</span>
         {selected.length > 0 && <button onClick={() => setSelected([])}>Limpiar</button>}
       </div>
-      <div className="filter-chips">
-        {options.map((option) => (
-          <button key={option} className={clsx("filter-chip", selected.includes(option) && "active")} onClick={() => toggle(option)}>
-            {option}
-          </button>
-        ))}
-      </div>
+      <button type="button" className={clsx("multi-select-trigger", open && "open")} onClick={() => setOpen(!open)}>
+        <span>{label}</span>
+        <ChevronDown size={17} />
+      </button>
+      {open && (
+        <div className="multi-select-menu">
+          {options.map((option) => {
+            const active = selected.includes(option);
+            return (
+              <button key={option} type="button" className={clsx("multi-select-option", active && "active")} onClick={() => toggle(option)}>
+                <span className="multi-select-check">{active && <Check size={14} />}</span>
+                <span>{option}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
