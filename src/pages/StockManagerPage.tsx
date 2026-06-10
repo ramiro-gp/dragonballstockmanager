@@ -140,7 +140,10 @@ export function StockManagerPage({
   return (
     <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
       <section className="tool-surface h-fit">
-        <div className="segmented">
+        <p className="eyebrow">Publicar cartas</p>
+        <h2 className="panel-title">Sumar cartas al stock público</h2>
+        <p className="mt-2 text-sm text-[var(--muted)]">Todo lo que cargues acá queda disponible para que el comprador lo vea y lo agregue al carrito.</p>
+        <div className="segmented mt-4">
           <button className={clsx(mode === "list" && "active")} onClick={() => setMode("list")}>Lista</button>
           <button className={clsx(mode === "range" && "active")} onClick={() => setMode("range")}>Rango</button>
         </div>
@@ -160,7 +163,7 @@ export function StockManagerPage({
           </div>
           <label className="field"><span>Expansión</span><input value={expansion} onChange={(event) => setExpansion(event.target.value)} maxLength={80} /></label>
           <label className="field"><span>Precio default</span><input type="number" value={price} onChange={(event) => setPrice(Number(event.target.value))} /></label>
-          <button className="primary-button" onClick={loadStock} disabled={!assistedRows.length}><PackagePlus size={18} />Cargar {previewNumbers.length} cartas</button>
+          <button className="primary-button" onClick={loadStock} disabled={!assistedRows.length}><PackagePlus size={18} />Publicar {previewNumbers.length} cartas</button>
         </div>
       </section>
 
@@ -191,13 +194,13 @@ export function StockManagerPage({
           ))}
           {!assistedRows.length && <p className="empty">Pegá una lista o elegí un rango para ver la previsualización.</p>}
         </div>
-        <div className="section-heading mt-6"><h3>Stock actual</h3><span>{stock.length} variantes</span></div>
+        <div className="section-heading mt-6"><h3>Cartas publicadas</h3><span>{stock.length} variantes</span></div>
         <div className="stock-table">
           {stock.map((item) => <div key={item.id} className="stock-row"><span>{item.number}</span><span>{kindLabel[item.kind]} · {item.variant}</span><span>x{availableQuantity(item)} / {item.quantity}</span><strong>{formatMoney(item.price)}</strong></div>)}
         </div>
       </section>
       <section className="tool-surface xl:col-span-2">
-        <p className="eyebrow">Carga asistida</p>
+        <p className="eyebrow">Publicación asistida</p>
         <h3 className="panel-title">Variantes sin 500 clicks</h3>
         <p className="mt-2 text-sm text-[var(--muted)]">
           Pegás todo el lote como común/base y después sólo las excepciones. Formatos útiles:

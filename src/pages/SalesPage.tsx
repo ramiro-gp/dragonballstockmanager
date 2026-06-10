@@ -15,6 +15,13 @@ export function SalesPage({
 }) {
   return (
     <div className="grid gap-4">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Historial</p>
+          <h2 className="panel-title">Ventas y pedidos</h2>
+        </div>
+        <span>{sales.length} pedidos</span>
+      </div>
       {sales.map((sale) => {
         const total = saleTotal(sale);
         const paid = paidTotal(sale);

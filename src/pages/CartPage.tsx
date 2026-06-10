@@ -51,7 +51,7 @@ export function CartPage({
               </div>
             </div>
           ))}
-          {!cart.length && <p className="empty">Todavía no hay cartas seleccionadas.</p>}
+          {!cart.length && <p className="empty">Todavía no hay productos seleccionados.</p>}
         </div>
       </section>
       <aside className="tool-surface h-fit">

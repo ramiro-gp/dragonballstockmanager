@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { Check, ChevronDown, Filter, ShoppingCart, ShieldCheck, Truck, Wand2 } from "lucide-react";
+import { Check, ChevronDown, Filter, LayoutGrid, List, Plus, ShoppingCart, ShieldCheck, Truck, Wand2 } from "lucide-react";
 import type { Route } from "../app/routes";
 import type { CardStock, CartLine, Product, Seller } from "../lib/types";
 import { availableQuantity, cartTotal, formatMoney, kindLabel, parseCardList } from "../lib/helpers";
@@ -30,6 +30,7 @@ export function PublicStockPage({
   const [kinds, setKinds] = useState<string[]>([]);
   const [variants, setVariants] = useState<string[]>([]);
   const [expansions, setExpansions] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [cardPage, setCardPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
   const numbers = parseCardList(query);
@@ -64,10 +65,12 @@ export function PublicStockPage({
       }));
   }, [numbers, stock]);
 
-  const cardPageSize = 8;
+  const cardPageSize = viewMode === "cards" ? 8 : 12;
   const productPageSize = 6;
   const visibleCards = grouped.slice((cardPage - 1) * cardPageSize, cardPage * cardPageSize);
+  const visibleRows = results.slice((cardPage - 1) * cardPageSize, cardPage * cardPageSize);
   const visibleProducts = products.slice((productPage - 1) * productPageSize, productPage * productPageSize);
+  const cardsTotal = viewMode === "cards" ? grouped.length : results.length;
 
   return (
     <div className="space-y-5">
@@ -133,6 +136,16 @@ export function PublicStockPage({
             <Wand2 size={18} />
             Agregar encontrados
           </button>
+          <div className="view-toggle" aria-label="Modo de vista">
+            <button className={clsx(viewMode === "cards" && "active")} onClick={() => { setViewMode("cards"); setCardPage(1); }}>
+              <LayoutGrid size={17} />
+              Cards
+            </button>
+            <button className={clsx(viewMode === "table" && "active")} onClick={() => { setViewMode("table"); setCardPage(1); }}>
+              <List size={17} />
+              Tabla
+            </button>
+          </div>
           <button className="cart-jump" onClick={() => navigate("/carrito")}>
             <ShoppingCart size={18} />
             <span>Carrito: {cart.length} ítems · {formatMoney(cartTotal(cart))}</span>
@@ -140,12 +153,54 @@ export function PublicStockPage({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {visibleCards.map((items) => (
-          <CardResult key={items[0].number} items={items} addToCart={addToCart} />
-        ))}
-      </div>
-      <Pagination page={cardPage} pageSize={cardPageSize} total={grouped.length} onPageChange={setCardPage} />
+      {viewMode === "cards" ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {visibleCards.map((items) => (
+            <CardResult key={items[0].number} items={items} addToCart={addToCart} />
+          ))}
+        </div>
+      ) : (
+        <div className="card-table">
+          <div className="card-table-row header">
+            <span>N° carta</span>
+            <span>Tipo</span>
+            <span>Variante</span>
+            <span>Expansión</span>
+            <span>Precio</span>
+            <span>Cantidad</span>
+            <span></span>
+          </div>
+          {visibleRows.map((item) => (
+            <div key={item.id} className="card-table-row">
+              <strong>{item.number}</strong>
+              <span>{kindLabel[item.kind]}</span>
+              <span>{item.variant}</span>
+              <span>{item.expansion}</span>
+              <strong>{formatMoney(item.price)}</strong>
+              <span>x{availableQuantity(item)}</span>
+              <button
+                className="icon-button small"
+                onClick={() =>
+                  addToCart({
+                    itemType: "card",
+                    itemId: item.id,
+                    sellerId: item.sellerId,
+                    label: `Carta ${item.number} · ${kindLabel[item.kind]} ${item.variant}`,
+                    unitPrice: item.price,
+                    quantity: 1,
+                    maxQuantity: availableQuantity(item),
+                  })
+                }
+                disabled={availableQuantity(item) <= 0}
+                aria-label="Agregar al carrito"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <Pagination page={cardPage} pageSize={cardPageSize} total={cardsTotal} onPageChange={setCardPage} />
 
       <div className="section-heading">
         <h3>Otros productos</h3>
