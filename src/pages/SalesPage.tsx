@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
-import { Boxes, CircleDollarSign, Edit3, Plus, Save, WalletCards, X } from "lucide-react";
+import { Boxes, CircleDollarSign, Save, WalletCards, X } from "lucide-react";
 import type { CardStock, Product, Sale, SaleLine, SaleStatus } from "../lib/types";
-import { availableQuantity, formatMoney, kindLabel, paidTotal, saleTotal, statusLabel } from "../lib/helpers";
+import { availableQuantity, formatMoney, kindLabel, paidTotal, statusLabel } from "../lib/helpers";
+import { sortCardStock } from "../lib/sorting";
 import { Metric } from "../components/shared/Metric";
 
 export function SalesPage({
@@ -19,13 +20,19 @@ export function SalesPage({
   updateSaleLine: (saleId: string, lineIndex: number, quantity: number, price: number) => void;
   saveSaleLines: (saleId: string, lines: SaleLine[]) => void;
 }) {
-  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [draftLines, setDraftLines] = useState<Record<string, SaleLine[]>>({});
+  const sortedStock = useMemo(() => [...stock].sort(sortCardStock), [stock]);
+  const sortedProducts = useMemo(() => [...products].sort((a, b) => a.name.localeCompare(b.name)), [products]);
 
-  function startEdit(sale: Sale) {
-    setEditingSaleId(sale.id);
-    setDraftLines((current) => ({ ...current, [sale.id]: sale.lines.map((line) => ({ ...line })) }));
-  }
+  useEffect(() => {
+    setDraftLines((current) => {
+      const next = { ...current };
+      sales.forEach((sale) => {
+        if (!next[sale.id]) next[sale.id] = sale.lines.map((line) => ({ ...line }));
+      });
+      return next;
+    });
+  }, [sales]);
 
   function updateDraftLine(saleId: string, lineIndex: number, patch: Partial<SaleLine>) {
     setDraftLines((current) => ({
@@ -34,23 +41,25 @@ export function SalesPage({
     }));
   }
 
-  function addStockLine(saleId: string, itemId: string) {
+  function addStockLine(sale: Sale, itemId: string) {
     const item = stock.find((stockItem) => stockItem.id === itemId);
     if (!item) return;
     const line: SaleLine = {
       itemType: "card",
       itemId: item.id,
       sellerId: item.sellerId,
-      label: `Carta ${item.number} · ${kindLabel[item.kind]} ${item.variant}`,
+      label: `Carta ${item.number} - ${kindLabel[item.kind]} ${item.variant}`,
       unitPrice: item.price,
       finalUnitPrice: item.price,
       quantity: 1,
       maxQuantity: Math.max(1, availableQuantity(item)),
     };
-    setDraftLines((current) => ({ ...current, [saleId]: [...(current[saleId] ?? []), line] }));
+    const nextLines = [...(draftLines[sale.id] ?? sale.lines), line];
+    setDraftLines((current) => ({ ...current, [sale.id]: nextLines }));
+    saveSaleLines(sale.id, nextLines);
   }
 
-  function addProductLine(saleId: string, itemId: string) {
+  function addProductLine(sale: Sale, itemId: string) {
     const product = products.find((item) => item.id === itemId);
     if (!product) return;
     const line: SaleLine = {
@@ -63,12 +72,13 @@ export function SalesPage({
       quantity: 1,
       maxQuantity: Math.max(1, product.quantity),
     };
-    setDraftLines((current) => ({ ...current, [saleId]: [...(current[saleId] ?? []), line] }));
+    const nextLines = [...(draftLines[sale.id] ?? sale.lines), line];
+    setDraftLines((current) => ({ ...current, [sale.id]: nextLines }));
+    saveSaleLines(sale.id, nextLines);
   }
 
   function save(saleId: string) {
     saveSaleLines(saleId, draftLines[saleId] ?? []);
-    setEditingSaleId(null);
   }
 
   return (
@@ -81,8 +91,7 @@ export function SalesPage({
         <span>{sales.length} pedidos</span>
       </div>
       {sales.map((sale) => {
-        const editing = editingSaleId === sale.id;
-        const lines = editing ? draftLines[sale.id] ?? sale.lines : sale.lines;
+        const lines = draftLines[sale.id] ?? sale.lines;
         const total = lines.reduce((sum, line) => sum + line.finalUnitPrice * line.quantity, 0);
         const paid = paidTotal(sale);
         return (
@@ -99,13 +108,27 @@ export function SalesPage({
                     {statusLabel[status]}
                   </button>
                 ))}
-                {editing ? (
-                  <button className="primary-button compact" onClick={() => save(sale.id)}><Save size={16} />Guardar cambios</button>
-                ) : (
-                  <button className="secondary-button compact" onClick={() => startEdit(sale)}><Edit3 size={16} />Editar</button>
-                )}
+                <button className="primary-button compact" onClick={() => save(sale.id)}><Save size={16} />Guardar cambios</button>
               </div>
             </div>
+
+            <div className="sale-add-grid mt-4">
+              <label className="field">
+                <span>Agregar otra carta</span>
+                <select defaultValue="" onChange={(event) => { addStockLine(sale, event.target.value); event.currentTarget.value = ""; }}>
+                  <option value="" disabled>Elegir carta</option>
+                  {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {item.variant}</option>)}
+                </select>
+              </label>
+              <label className="field">
+                <span>Agregar otro producto</span>
+                <select defaultValue="" onChange={(event) => { addProductLine(sale, event.target.value); event.currentTarget.value = ""; }}>
+                  <option value="" disabled>Elegir producto</option>
+                  {sortedProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                </select>
+              </label>
+            </div>
+
             <div className="mt-5 sale-edit-table">
               <div className="sale-edit-row header">
                 <span>Item</span>
@@ -119,34 +142,14 @@ export function SalesPage({
                     <p>{line.label}</p>
                     <span>Original: {formatMoney(line.unitPrice)}</span>
                   </div>
-                  <input type="number" min={1} value={line.quantity} disabled={!editing} onChange={(event) => updateDraftLine(sale.id, index, { quantity: Math.max(1, Number(event.target.value)) })} />
-                  <input type="number" min={0} value={line.finalUnitPrice} disabled={!editing} onChange={(event) => updateDraftLine(sale.id, index, { finalUnitPrice: Math.max(0, Number(event.target.value)) })} />
-                  {editing && (
-                    <button className="ghost-icon" onClick={() => setDraftLines((current) => ({ ...current, [sale.id]: (current[sale.id] ?? []).filter((_, rowIndex) => rowIndex !== index) }))} aria-label="Quitar item">
-                      <X size={16} />
-                    </button>
-                  )}
+                  <input type="number" min={1} value={line.quantity} onChange={(event) => updateDraftLine(sale.id, index, { quantity: Math.max(1, Number(event.target.value)) })} />
+                  <input type="number" min={0} value={line.finalUnitPrice} onChange={(event) => updateDraftLine(sale.id, index, { finalUnitPrice: Math.max(0, Number(event.target.value)) })} />
+                  <button className="ghost-icon" onClick={() => setDraftLines((current) => ({ ...current, [sale.id]: (current[sale.id] ?? []).filter((_, rowIndex) => rowIndex !== index) }))} aria-label="Quitar item">
+                    <X size={16} />
+                  </button>
                 </div>
               ))}
             </div>
-            {editing && (
-              <div className="sale-add-grid mt-4">
-                <label className="field">
-                  <span>Agregar otra carta</span>
-                  <select defaultValue="" onChange={(event) => { addStockLine(sale.id, event.target.value); event.currentTarget.value = ""; }}>
-                    <option value="" disabled>Elegir carta</option>
-                    {stock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} · {kindLabel[item.kind]} {item.variant}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Agregar otro producto</span>
-                  <select defaultValue="" onChange={(event) => { addProductLine(sale.id, event.target.value); event.currentTarget.value = ""; }}>
-                    <option value="" disabled>Elegir producto</option>
-                    {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-                  </select>
-                </label>
-              </div>
-            )}
             <div className="mt-5 grid gap-3 border-t border-[var(--line)] pt-4 md:grid-cols-3">
               <Metric icon={CircleDollarSign} label="Total venta" value={formatMoney(total)} />
               <Metric icon={WalletCards} label="Pago" value={formatMoney(paid)} />

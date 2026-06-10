@@ -1291,10 +1291,6 @@ textarea.input {
   grid-template-columns: 100px 1fr auto auto;
 }
 
-.card-manage-row {
-  grid-template-columns: 92px 130px minmax(150px, 1fr) 96px 120px 36px;
-}
-
 .manage-actions {
   display: grid;
   grid-template-columns: 1fr;
@@ -1347,8 +1343,14 @@ textarea.input {
   padding: 0 0.6rem;
 }
 
+.card-manage-row {
+  grid-template-columns: 86px 150px minmax(190px, 1fr) 74px 104px 36px;
+  min-width: 700px;
+}
+
 .product-manage-row {
   grid-template-columns: 120px minmax(150px, 1fr) 78px 96px minmax(180px, 1.2fr) minmax(160px, 1fr) 36px;
+  min-width: 920px;
 }
 
 .sale-edit-table,
@@ -1409,6 +1411,22 @@ textarea.input {
 .publish-price-grid {
   display: grid;
   gap: 0.75rem;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  align-items: end;
+}
+
+.compact-field {
+  min-width: 180px;
+}
+
+.compact-field select {
+  min-height: 36px;
 }
 
 .status-button {
