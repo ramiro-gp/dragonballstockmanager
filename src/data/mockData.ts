@@ -72,6 +72,8 @@ export const initialStock: CardStock[] = [
   { id: "c-300-comun", sellerId: "seller-ramiro", number: "300", expansion: "Expansión 1", kind: "comun", variant: "Base", quantity: 8, reserved: 0, price: 300 },
   { id: "c-301-comun", sellerId: "seller-ramiro", number: "301", expansion: "Expansión 1", kind: "comun", variant: "Base", quantity: 6, reserved: 0, price: 300 },
   { id: "c-302-comun", sellerId: "seller-ramiro", number: "302", expansion: "Expansión 1", kind: "comun", variant: "Base", quantity: 4, reserved: 0, price: 300 },
+  { id: "c-capsule-700", sellerId: "seller-capsule", number: "700", expansion: "GT", kind: "holo", variant: "Dorado", quantity: 2, reserved: 0, price: 1900 },
+  { id: "c-capsule-701", sellerId: "seller-capsule", number: "701", expansion: "GT", kind: "comun", variant: "Base", quantity: 5, reserved: 0, price: 450 },
 ];
 
 export const initialProducts: Product[] = [
@@ -81,9 +83,19 @@ export const initialProducts: Product[] = [
     name: "Figura Shenlong",
     category: "figura",
     description: "Figura de colección en caja, ideal para vitrina.",
-    quantity: 1,
+    quantity: 0,
     price: 18000,
     imageUrl: "https://images.unsplash.com/photo-1608889476561-6242cfdbf622?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    id: "p-posters-z",
+    sellerId: "seller-ramiro",
+    name: "Lote posters Dragon Ball Z",
+    category: "lote",
+    description: "Set de posters chicos para completar colección o decorar carpeta.",
+    quantity: 3,
+    price: 8500,
+    imageUrl: "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: "p-caja-gt",
@@ -94,6 +106,16 @@ export const initialProducts: Product[] = [
     quantity: 2,
     price: 24000,
     imageUrl: "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    id: "p-capsule-tomo",
+    sellerId: "seller-capsule",
+    name: "Tomo Dragon Ball usado",
+    category: "tomo",
+    description: "Tomo en buen estado publicado por Capsule Cards.",
+    quantity: 1,
+    price: 6200,
+    imageUrl: "https://images.unsplash.com/photo-1526243741027-444d633d7365?auto=format&fit=crop&w=900&q=80",
   },
 ];
 

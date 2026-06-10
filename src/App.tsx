@@ -4,7 +4,7 @@ import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
 import { cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
-import type { CardStock, CartLine, Purchase, Sale, SaleStatus, Theme } from "./lib/types";
+import type { CardStock, CartLine, Product, Purchase, Sale, SaleStatus, Seller, Theme } from "./lib/types";
 import { CartPage } from "./pages/CartPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -24,15 +24,19 @@ export function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [stock, setStock] = useState<CardStock[]>(initialStock);
-  const [products] = useState(initialProducts);
+  const [products, setProducts] = useState<Product[]>(initialProducts);
   const [sales, setSales] = useState<Sale[]>(initialSales);
   const [purchases] = useState<Purchase[]>(initialPurchases);
   const [cart, setCart] = useState<CartLine[]>([]);
 
+  const publicSeller = getPublicSeller(route, sellers) ?? currentSeller;
   const sellerStock = stock.filter((item) => item.sellerId === currentSeller.id);
   const sellerProducts = products.filter((item) => item.sellerId === currentSeller.id);
+  const publicSellerStock = stock.filter((item) => item.sellerId === publicSeller.id);
+  const publicSellerProducts = products.filter((item) => item.sellerId === publicSeller.id && item.quantity > 0);
   const sellerSales = sales.filter((sale) => sale.sellerId === currentSeller.id);
   const sellerPurchases = purchases.filter((purchase) => purchase.sellerId === currentSeller.id);
+  const cartSeller = sellers.find((seller) => seller.id === cart[0]?.sellerId) ?? publicSeller;
   const revenue = sellerSales.filter((sale) => sale.status === "confirmada").reduce((sum, sale) => sum + saleTotal(sale), 0);
   const spent = sellerPurchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0);
   const visibleRoute = !isLoggedIn && privateRoutes.includes(route) ? "/login" : route;
@@ -70,7 +74,7 @@ export function App() {
     const sale: Sale = {
       id: crypto.randomUUID(),
       orderNumber,
-      sellerId: currentSeller.id,
+      sellerId: cart[0]?.sellerId ?? currentSeller.id,
       customerName: customerName || "Cliente sin nombre",
       customerWhatsapp,
       note,
@@ -84,7 +88,7 @@ export function App() {
     setSales((current) => [sale, ...current]);
   }
 
-  function applySaleStock(sale: Sale, direction: 1 | -1) {
+  function applySaleInventory(sale: Sale, direction: 1 | -1) {
     setStock((current) =>
       current.map((item) => {
         const saleQuantity = sale.lines
@@ -94,6 +98,15 @@ export function App() {
         return { ...item, reserved: Math.max(0, item.reserved + saleQuantity * direction) };
       }),
     );
+    setProducts((current) =>
+      current.map((item) => {
+        const saleQuantity = sale.lines
+          .filter((line) => line.itemType === "product" && line.itemId === item.id)
+          .reduce((sum, line) => sum + line.quantity, 0);
+        if (!saleQuantity) return item;
+        return { ...item, quantity: Math.max(0, item.quantity - saleQuantity * direction) };
+      }),
+    );
   }
 
   function changeSaleStatus(saleId: string, status: SaleStatus) {
@@ -101,8 +114,8 @@ export function App() {
     if (!sale) return;
     const nextShouldApply = shouldApplyStock(status);
 
-    if (nextShouldApply && !sale.stockApplied) applySaleStock(sale, 1);
-    if (!nextShouldApply && sale.stockApplied) applySaleStock(sale, -1);
+    if (nextShouldApply && !sale.stockApplied) applySaleInventory(sale, 1);
+    if (!nextShouldApply && sale.stockApplied) applySaleInventory(sale, -1);
 
     setSales((current) =>
       current.map((item) =>
@@ -146,11 +159,11 @@ export function App() {
           navigate("/");
         }}
       >
-        {visibleRoute === "/" && (
+        {(visibleRoute === "/" || isSellerStockRoute(visibleRoute)) && (
           <PublicStockPage
-            seller={currentSeller}
-            stock={sellerStock}
-            products={sellerProducts}
+            seller={publicSeller}
+            stock={publicSellerStock}
+            products={publicSellerProducts}
             cart={cart}
             addToCart={addToCart}
             addManyToCart={addManyToCart}
@@ -162,8 +175,8 @@ export function App() {
           <CartPage
             cart={cart}
             setCart={setCart}
-            sellerName={currentSeller.name}
-            sellerWhatsapp={currentSeller.whatsapp}
+            sellerName={cartSeller.name}
+            sellerWhatsapp={cartSeller.whatsapp}
             createPendingSale={createPendingSale}
           />
         )}
@@ -178,7 +191,7 @@ export function App() {
         )}
         {sellerInactive && visibleRoute !== "/login" && <SubscriptionExpiredPage sellerWhatsapp={currentSeller.whatsapp} />}
         {!sellerInactive && isLoggedIn && visibleRoute === "/carga" && (
-          <StockManagerPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} />
+          <StockManagerPage sellerId={currentSeller.id} stock={sellerStock} setStock={setStock} products={sellerProducts} setProducts={setProducts} />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
           <SalesPage sales={sellerSales} changeSaleStatus={changeSaleStatus} updateSaleLine={updateSaleLine} />
@@ -212,4 +225,14 @@ function mergeCartLines(current: CartLine[], additions: CartLine[]) {
         : item,
     );
   }, baseCart);
+}
+
+function isSellerStockRoute(route: Route) {
+  return /^\/[a-z0-9-]+\/stock$/i.test(route);
+}
+
+function getPublicSeller(route: Route, allSellers: Seller[]) {
+  if (!isSellerStockRoute(route)) return allSellers.find((seller) => seller.isMain);
+  const slug = route.split("/")[1];
+  return allSellers.find((seller) => seller.slug === slug);
 }

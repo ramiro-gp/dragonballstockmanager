@@ -7,11 +7,13 @@ export type Route =
   | "/panel"
   | "/ajustes"
   | "/quiero-vender"
-  | "/crear-vendedor";
+  | "/crear-vendedor"
+  | `/${string}/stock`;
 
 export const privateRoutes: Route[] = ["/carga", "/ventas", "/panel", "/ajustes", "/crear-vendedor"];
 
 export function getCurrentRoute(): Route {
+  const path = window.location.pathname;
   const allowed: Route[] = [
     "/",
     "/login",
@@ -23,5 +25,7 @@ export function getCurrentRoute(): Route {
     "/quiero-vender",
     "/crear-vendedor",
   ];
-  return allowed.includes(window.location.pathname as Route) ? (window.location.pathname as Route) : "/";
+  if (allowed.includes(path as Route)) return path as Route;
+  if (/^\/[a-z0-9-]+\/stock$/i.test(path)) return path as Route;
+  return "/";
 }

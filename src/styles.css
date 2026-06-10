@@ -1102,6 +1102,19 @@ textarea.input {
   grid-template-columns: 80px 1fr auto auto;
 }
 
+.product-load-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.product-load-action {
+  width: fit-content;
+}
+
+.product-stock-row {
+  grid-template-columns: 100px 1fr auto auto;
+}
+
 .status-button {
   min-height: 36px;
   padding: 0 0.75rem;
@@ -1627,6 +1640,19 @@ textarea.input {
 
   .search-list textarea {
     min-height: 116px;
+  }
+
+  .product-load-grid {
+    grid-template-columns: 1.2fr 0.8fr 0.6fr 0.8fr;
+    align-items: end;
+  }
+
+  .product-load-wide {
+    grid-column: span 2;
+  }
+
+  .product-load-action {
+    grid-column: 1 / -1;
   }
 
   .app-footer {

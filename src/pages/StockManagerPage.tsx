@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
 import { PackagePlus } from "lucide-react";
-import type { CardKind, CardStock } from "../lib/types";
+import type { CardKind, CardStock, Product } from "../lib/types";
 import { availableQuantity, formatMoney, groupNumbers, kindLabel, parseCardList, parseRange } from "../lib/helpers";
 
 type AssistedRow = {
@@ -26,10 +26,14 @@ export function StockManagerPage({
   sellerId,
   stock,
   setStock,
+  products,
+  setProducts,
 }: {
   sellerId: string;
   stock: CardStock[];
   setStock: React.Dispatch<React.SetStateAction<CardStock[]>>;
+  products: Product[];
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
 }) {
   const [mode, setMode] = useState<"list" | "range">("list");
   const [list, setList] = useState("1 2 2 3 504F");
@@ -42,6 +46,12 @@ export function StockManagerPage({
   const [variantOverrides, setVariantOverrides] = useState("1110: verde\n1134: glitter\n504F: fantasma");
   const [price, setPrice] = useState(300);
   const [rowEdits, setRowEdits] = useState<Record<string, RowEdit>>({});
+  const [productName, setProductName] = useState("");
+  const [productCategory, setProductCategory] = useState<Product["category"]>("figura");
+  const [productDescription, setProductDescription] = useState("");
+  const [productQuantity, setProductQuantity] = useState(1);
+  const [productPrice, setProductPrice] = useState(0);
+  const [productImageUrl, setProductImageUrl] = useState("");
 
   const previewNumbers = mode === "list" ? parseCardList(list) : parseRange(from, to, except);
   const grouped = groupNumbers(previewNumbers);
@@ -102,6 +112,29 @@ export function StockManagerPage({
 
   function updatePreviewRow(key: string, edit: RowEdit) {
     setRowEdits((current) => ({ ...current, [key]: { ...current[key], ...edit } }));
+  }
+
+  function loadProduct() {
+    const name = productName.trim();
+    if (!name || productQuantity <= 0) return;
+    setProducts((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        sellerId,
+        name,
+        category: productCategory,
+        description: productDescription.trim() || "Producto publicado sin descripción.",
+        quantity: Math.max(1, productQuantity),
+        price: Math.max(0, productPrice),
+        imageUrl: productImageUrl.trim() || "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80",
+      },
+    ]);
+    setProductName("");
+    setProductDescription("");
+    setProductQuantity(1);
+    setProductPrice(0);
+    setProductImageUrl("");
   }
 
   return (
@@ -182,6 +215,46 @@ export function StockManagerPage({
             <span>3. Pegás variantes, tipos o precios especiales.</span>
             <span>4. Ajustás la tabla y confirmás la carga.</span>
           </div>
+        </div>
+      </section>
+      <section className="tool-surface xl:col-span-2">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Otros productos</p>
+            <h3 className="panel-title">Publicar productos que no son cartas</h3>
+          </div>
+          <span>{products.length} productos</span>
+        </div>
+        <div className="product-load-grid mt-4">
+          <label className="field"><span>Nombre</span><input value={productName} onChange={(event) => setProductName(event.target.value)} placeholder="Figura, tomo, caja, lote..." maxLength={80} /></label>
+          <label className="field">
+            <span>Categoría</span>
+            <select value={productCategory} onChange={(event) => setProductCategory(event.target.value as Product["category"])}>
+              <option value="figura">Figura</option>
+              <option value="tomo">Tomo</option>
+              <option value="caja">Caja</option>
+              <option value="lote">Lote</option>
+              <option value="figurita">Figurita</option>
+            </select>
+          </label>
+          <label className="field"><span>Cantidad</span><input type="number" min={1} value={productQuantity} onChange={(event) => setProductQuantity(Number(event.target.value))} /></label>
+          <label className="field"><span>Precio</span><input type="number" min={0} value={productPrice} onChange={(event) => setProductPrice(Number(event.target.value))} /></label>
+          <label className="field product-load-wide"><span>Descripción</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Estado, medidas, contenido del lote..." maxLength={600} /></label>
+          <label className="field product-load-wide"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." /></label>
+          <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim()}>
+            <PackagePlus size={18} />
+            Publicar producto
+          </button>
+        </div>
+        <div className="stock-table">
+          {products.map((product) => (
+            <div key={product.id} className="stock-row product-stock-row">
+              <span>{product.category}</span>
+              <span>{product.name}</span>
+              <span>x{product.quantity}</span>
+              <strong>{formatMoney(product.price)}</strong>
+            </div>
+          ))}
         </div>
       </section>
     </div>
