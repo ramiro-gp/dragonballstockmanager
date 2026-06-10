@@ -14,7 +14,7 @@ export function CartPage({
   setCart: React.Dispatch<React.SetStateAction<CartLine[]>>;
   sellerName: string;
   sellerWhatsapp: string;
-  createPendingSale: (customerName: string, customerWhatsapp: string, note: string, orderNumber: string) => void;
+  createPendingSale: (customerName: string, customerWhatsapp: string, note: string, orderNumber: string) => Promise<void> | void;
 }) {
   const [customerName, setCustomerName] = useState("");
   const [customerWhatsapp, setCustomerWhatsapp] = useState("");
@@ -22,9 +22,9 @@ export function CartPage({
   const orderNumber = useMemo(() => `DBSM-${Math.floor(2400 + Math.random() * 7000)}`, [cart.length]);
   const whatsappUrl = buildWhatsappUrl(sellerWhatsapp, sellerName, orderNumber, cart, note);
 
-  function consultByWhatsapp() {
+  async function consultByWhatsapp() {
     if (!cart.length) return;
-    createPendingSale(customerName, customerWhatsapp, note, orderNumber);
+    await createPendingSale(customerName, customerWhatsapp, note, orderNumber);
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   }
 

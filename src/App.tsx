@@ -145,6 +145,7 @@ export function App() {
     }
 
     await loadSellerInventoryFromSupabase(userId);
+    await loadSellerSalesFromSupabase(userId);
   }
 
   async function loadSellerInventoryFromSupabase(sellerId: string) {
@@ -176,6 +177,53 @@ export function App() {
       setProducts((current) => [
         ...current.filter((item) => item.sellerId !== sellerId && item.sellerId !== fallbackSellerId),
         ...nextProducts,
+      ]);
+    }
+  }
+
+  async function loadSellerSalesFromSupabase(sellerId: string) {
+    if (!supabase) return;
+
+    const { data: saleRows } = await supabase
+      .from("sales")
+      .select(`
+        id,
+        seller_id,
+        customer_name,
+        customer_whatsapp,
+        customer_note,
+        status,
+        stock_applied,
+        total_ars,
+        created_at,
+        sale_lines (
+          id,
+          item_type,
+          stock_card_id,
+          stock_product_id,
+          card_number,
+          expansion,
+          variant_type,
+          color_variant,
+          product_name,
+          quantity,
+          unit_price_ars
+        ),
+        payments (
+          id,
+          amount_ars,
+          note,
+          paid_at
+        )
+      `)
+      .eq("seller_id", sellerId)
+      .order("created_at", { ascending: false });
+
+    if (saleRows) {
+      const nextSales = saleRows.map(mapSupabaseSale);
+      setSales((current) => [
+        ...current.filter((sale) => sale.sellerId !== sellerId && sale.sellerId !== fallbackSellerId),
+        ...nextSales,
       ]);
     }
   }
@@ -356,8 +404,9 @@ export function App() {
     setCart((current) => mergeCartLines(current, lines));
   }
 
-  function createPendingSale(customerName: string, customerWhatsapp: string, note: string, orderNumber: string) {
+  async function createPendingSale(customerName: string, customerWhatsapp: string, note: string, orderNumber: string) {
     if (!cart.length) return;
+
     const sale: Sale = {
       id: crypto.randomUUID(),
       orderNumber,
@@ -372,43 +421,103 @@ export function App() {
       lines: cart.map((line) => ({ ...line, finalUnitPrice: line.unitPrice })),
       payments: [],
     };
+
+    if (supabase) {
+      const { data } = await supabase
+        .from("sales")
+        .insert({
+          seller_id: sale.sellerId,
+          customer_name: sale.customerName,
+          customer_whatsapp: sale.customerWhatsapp,
+          customer_note: sale.note,
+          status: toSupabaseStatus(sale.status),
+          stock_applied: false,
+          total_ars: saleTotal(sale),
+        })
+        .select("id, seller_id, customer_name, customer_whatsapp, customer_note, status, stock_applied, total_ars, created_at")
+        .single();
+
+      if (data) {
+        const saleId = data.id;
+        const rows = sale.lines.map((line) => saleLineToSupabaseInsert(saleId, sale.sellerId, line));
+        if (rows.length) await supabase.from("sale_lines").insert(rows);
+        await loadSellerSalesFromSupabase(sale.sellerId);
+        setCart([]);
+        return;
+      }
+    }
+
     setSales((current) => [sale, ...current]);
+    setCart([]);
   }
 
-  function applySaleInventory(sale: Sale, direction: 1 | -1) {
-    setStock((current) =>
-      current.map((item) => {
-        const saleQuantity = sale.lines
-          .filter((line) => line.itemType === "card" && line.itemId === item.id)
-          .reduce((sum, line) => sum + line.quantity, 0);
-        if (!saleQuantity) return item;
-        return { ...item, reserved: Math.max(0, item.reserved + saleQuantity * direction) };
-      }),
-    );
-    setProducts((current) =>
-      current.map((item) => {
-        const saleQuantity = sale.lines
-          .filter((line) => line.itemType === "product" && line.itemId === item.id)
-          .reduce((sum, line) => sum + line.quantity, 0);
-        if (!saleQuantity) return item;
-        return { ...item, quantity: Math.max(0, item.quantity - saleQuantity * direction) };
-      }),
-    );
+  function applySaleInventorySnapshot(stockRows: CardStock[], productRows: Product[], sale: Sale, direction: 1 | -1) {
+    const nextStock = stockRows.map((item) => {
+      const saleQuantity = sale.lines
+        .filter((line) => line.itemType === "card" && line.itemId === item.id)
+        .reduce((sum, line) => sum + line.quantity, 0);
+      if (!saleQuantity) return item;
+      return { ...item, reserved: Math.max(0, item.reserved + saleQuantity * direction) };
+    });
+
+    const nextProducts = productRows.map((item) => {
+      const saleQuantity = sale.lines
+        .filter((line) => line.itemType === "product" && line.itemId === item.id)
+        .reduce((sum, line) => sum + line.quantity, 0);
+      if (!saleQuantity) return item;
+      return { ...item, quantity: Math.max(0, item.quantity - saleQuantity * direction) };
+    });
+
+    return { nextStock, nextProducts };
   }
 
-  function changeSaleStatus(saleId: string, status: SaleStatus) {
+  async function persistSaleToSupabase(sale: Sale) {
+    if (!supabase) return;
+
+    await supabase
+      .from("sales")
+      .update({
+        status: toSupabaseStatus(sale.status),
+        stock_applied: sale.stockApplied,
+        total_ars: saleTotal(sale),
+        customer_note: sale.note,
+      })
+      .eq("id", sale.id);
+
+    await supabase.from("sale_lines").delete().eq("sale_id", sale.id);
+    const rows = sale.lines.map((line) => saleLineToSupabaseInsert(sale.id, sale.sellerId, line));
+    if (rows.length) await supabase.from("sale_lines").insert(rows);
+  }
+
+  async function changeSaleStatus(saleId: string, status: SaleStatus) {
     const sale = sales.find((item) => item.id === saleId);
     if (!sale) return;
     const nextShouldApply = shouldApplyStock(status);
+    let nextStock = stock;
+    let nextProducts = products;
 
-    if (nextShouldApply && !sale.stockApplied) applySaleInventory(sale, 1);
-    if (!nextShouldApply && sale.stockApplied) applySaleInventory(sale, -1);
+    if (nextShouldApply && !sale.stockApplied) {
+      const inventory = applySaleInventorySnapshot(nextStock, nextProducts, sale, 1);
+      nextStock = inventory.nextStock;
+      nextProducts = inventory.nextProducts;
+    }
+    if (!nextShouldApply && sale.stockApplied) {
+      const inventory = applySaleInventorySnapshot(nextStock, nextProducts, sale, -1);
+      nextStock = inventory.nextStock;
+      nextProducts = inventory.nextProducts;
+    }
 
-    setSales((current) =>
-      current.map((item) =>
-        item.id === saleId ? { ...item, status, stockApplied: nextShouldApply } : item,
-      ),
-    );
+    const nextSale = { ...sale, status, stockApplied: nextShouldApply };
+    setStock(nextStock);
+    setProducts(nextProducts);
+    setSales((current) => current.map((item) => item.id === saleId ? nextSale : item));
+
+    await persistSaleToSupabase(nextSale);
+    if (supabase) {
+      await saveManagedCardsToSupabase(nextStock.filter((item) => item.sellerId === currentSeller.id));
+      await saveManagedProductsToSupabase(nextProducts.filter((item) => item.sellerId === currentSeller.id));
+      await loadSellerSalesFromSupabase(currentSeller.id);
+    }
   }
 
   function updateSaleLine(saleId: string, lineIndex: number, quantity: number, price: number) {
@@ -427,17 +536,30 @@ export function App() {
     );
   }
 
-  function saveSaleLines(saleId: string, lines: SaleLine[]) {
+  async function saveSaleLines(saleId: string, lines: SaleLine[]) {
     const sale = sales.find((item) => item.id === saleId);
     if (!sale) return;
     const nextSale = { ...sale, lines };
-    if (sale.stockApplied) {
-      applySaleInventory(sale, -1);
-      applySaleInventory(nextSale, 1);
-    }
-    setSales((current) => current.map((item) => item.id === saleId ? nextSale : item));
-  }
+    let nextStock = stock;
+    let nextProducts = products;
 
+    if (sale.stockApplied) {
+      const reverted = applySaleInventorySnapshot(nextStock, nextProducts, sale, -1);
+      const applied = applySaleInventorySnapshot(reverted.nextStock, reverted.nextProducts, nextSale, 1);
+      nextStock = applied.nextStock;
+      nextProducts = applied.nextProducts;
+      setStock(nextStock);
+      setProducts(nextProducts);
+    }
+
+    setSales((current) => current.map((item) => item.id === saleId ? nextSale : item));
+    await persistSaleToSupabase(nextSale);
+    if (supabase && sale.stockApplied) {
+      await saveManagedCardsToSupabase(nextStock.filter((item) => item.sellerId === currentSeller.id));
+      await saveManagedProductsToSupabase(nextProducts.filter((item) => item.sellerId === currentSeller.id));
+      await loadSellerSalesFromSupabase(currentSeller.id);
+    }
+  }
   return (
     <div className={clsx("app", theme)}>
       <AppLayout
@@ -641,6 +763,103 @@ function mapSupabaseProduct(row: {
     quantity: row.quantity,
     price: row.price_ars,
     imageUrl: row.image_url ?? "",
+  };
+}
+
+function mapSupabaseSale(row: {
+  id: string;
+  seller_id: string;
+  customer_name: string | null;
+  customer_whatsapp: string | null;
+  customer_note: string | null;
+  status: string;
+  stock_applied: boolean;
+  created_at: string;
+  sale_lines?: Array<{
+    id: string;
+    item_type: string;
+    stock_card_id: string | null;
+    stock_product_id: string | null;
+    card_number: number | null;
+    variant_type: string | null;
+    color_variant: string | null;
+    product_name: string | null;
+    quantity: number;
+    unit_price_ars: number;
+  }>;
+  payments?: Array<{
+    id: string;
+    amount_ars: number;
+    note: string | null;
+    paid_at: string;
+  }>;
+}): Sale {
+  return {
+    id: row.id,
+    orderNumber: `DBSM-${row.id.slice(0, 8).toUpperCase()}`,
+    sellerId: row.seller_id,
+    customerName: row.customer_name ?? "Cliente sin nombre",
+    customerWhatsapp: row.customer_whatsapp ?? "",
+    note: row.customer_note ?? "",
+    status: fromSupabaseStatus(row.status),
+    stockApplied: row.stock_applied,
+    createdAt: row.created_at.slice(0, 10),
+    shippingPending: fromSupabaseStatus(row.status) !== "confirmada",
+    lines: (row.sale_lines ?? []).map((line) => ({
+      itemType: line.item_type === "product" ? "product" : "card",
+      itemId: line.stock_product_id ?? line.stock_card_id ?? line.id,
+      sellerId: row.seller_id,
+      label: line.product_name ?? `Carta ${line.card_number ?? ""} - ${line.variant_type ?? ""} ${line.color_variant ?? ""}`.trim(),
+      unitPrice: line.unit_price_ars,
+      finalUnitPrice: line.unit_price_ars,
+      quantity: line.quantity,
+      maxQuantity: Math.max(1, line.quantity),
+    })),
+    payments: (row.payments ?? []).map((payment) => ({
+      id: payment.id,
+      amount: payment.amount_ars,
+      note: payment.note ?? "",
+      date: payment.paid_at.slice(0, 10),
+    })),
+  };
+}
+
+function toSupabaseStatus(status: SaleStatus) {
+  if (status === "pendiente") return "pending";
+  if (status === "reservada") return "reserved";
+  if (status === "confirmada") return "confirmed";
+  return "cancelled";
+}
+
+function fromSupabaseStatus(status: string): SaleStatus {
+  if (status === "reserved") return "reservada";
+  if (status === "confirmed" || status === "delivered") return "confirmada";
+  if (status === "cancelled") return "cancelada";
+  return "pendiente";
+}
+
+function saleLineToSupabaseInsert(saleId: string, sellerId: string, line: SaleLine) {
+  const isProduct = line.itemType === "product";
+  const cardNumber = isProduct ? null : Number.parseInt(line.label.match(/Carta\s+(\d+)/i)?.[1] ?? "", 10);
+  const cardDescription = line.label
+    .replace(/Carta\s+\d+/i, "")
+    .replace(/[·-]/g, " ")
+    .trim();
+  const [variantType = "", ...colorParts] = cardDescription.split(/\s+/).filter(Boolean);
+
+  return {
+    sale_id: saleId,
+    seller_id: sellerId,
+    item_type: line.itemType,
+    stock_card_id: isProduct ? null : line.itemId,
+    stock_product_id: isProduct ? line.itemId : null,
+    card_number: Number.isFinite(cardNumber) ? cardNumber : null,
+    expansion: null,
+    variant_type: isProduct ? null : variantType || null,
+    color_variant: isProduct ? null : colorParts.join(" ") || null,
+    product_name: isProduct ? line.label : null,
+    quantity: line.quantity,
+    unit_price_ars: line.finalUnitPrice,
   };
 }
 
