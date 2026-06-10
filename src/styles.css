@@ -1021,6 +1021,13 @@ textarea.input {
   border-color: var(--orange);
 }
 
+.form-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .item-card {
   padding: 1.1rem;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;

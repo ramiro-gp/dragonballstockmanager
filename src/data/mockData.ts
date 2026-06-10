@@ -6,8 +6,8 @@ const secondarySellerWhatsapp = import.meta.env.VITE_SECONDARY_SELLER_WHATSAPP |
 export const sellers: Seller[] = [
   {
     id: "seller-ramiro",
-    name: "Ramiro",
-    slug: "ramiro",
+    name: "ramitagarcia",
+    slug: "ramitagarcia",
     whatsapp: mainSellerWhatsapp,
     role: "admin",
     isMain: true,

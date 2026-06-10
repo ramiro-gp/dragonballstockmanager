@@ -4,6 +4,7 @@ import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
 import { cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
+import { supabase } from "./lib/supabase";
 import type { CardStock, CartLine, Product, Purchase, Sale, SaleLine, SaleStatus, Seller, Theme } from "./lib/types";
 import { CartPage } from "./pages/CartPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -20,7 +21,6 @@ import { SubscriptionExpiredPage } from "./pages/SubscriptionExpiredPage";
 const currentSeller = sellers[0];
 const STORAGE_KEYS = {
   theme: "dbsm.theme",
-  loggedIn: "dbsm.loggedIn",
   sidebarCollapsed: "dbsm.sidebarCollapsed",
   stock: "dbsm.stock",
   products: "dbsm.products",
@@ -31,7 +31,9 @@ const STORAGE_KEYS = {
 export function App() {
   const [theme, setTheme] = useState<Theme>(() => readStorage(STORAGE_KEYS.theme, "dark"));
   const [route, setRoute] = useState<Route>(getCurrentRoute());
-  const [isLoggedIn, setIsLoggedIn] = useState(() => readStorage(STORAGE_KEYS.loggedIn, false));
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authLoading, setAuthLoading] = useState(Boolean(supabase));
+  const [authError, setAuthError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage(STORAGE_KEYS.sidebarCollapsed, false));
   const [stock, setStock] = useState<CardStock[]>(() => readStorage(STORAGE_KEYS.stock, initialStock));
   const [products, setProducts] = useState<Product[]>(() => readStorage(STORAGE_KEYS.products, initialProducts));
@@ -58,8 +60,26 @@ export function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoggedIn(Boolean(data.session));
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(Boolean(session));
+      setAuthLoading(false);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   useEffect(() => writeStorage(STORAGE_KEYS.theme, theme), [theme]);
-  useEffect(() => writeStorage(STORAGE_KEYS.loggedIn, isLoggedIn), [isLoggedIn]);
   useEffect(() => writeStorage(STORAGE_KEYS.sidebarCollapsed, sidebarCollapsed), [sidebarCollapsed]);
   useEffect(() => writeStorage(STORAGE_KEYS.stock, stock), [stock]);
   useEffect(() => writeStorage(STORAGE_KEYS.products, products), [products]);
@@ -183,7 +203,8 @@ export function App() {
         isLoggedIn={isLoggedIn}
         sidebarCollapsed={sidebarCollapsed}
         setSidebarCollapsed={setSidebarCollapsed}
-        logout={() => {
+        logout={async () => {
+          if (supabase) await supabase.auth.signOut();
           setIsLoggedIn(false);
           navigate("/");
         }}
@@ -213,7 +234,25 @@ export function App() {
         {visibleRoute === "/login" && (
           <LoginPage
             navigate={navigate}
-            login={() => {
+            authLoading={authLoading}
+            authError={authError}
+            login={async (email, password) => {
+              setAuthError("");
+              setAuthLoading(true);
+
+              if (!supabase) {
+                setAuthLoading(false);
+                setAuthError("Falta configurar Supabase en .env.local.");
+                return;
+              }
+
+              const { error } = await supabase.auth.signInWithPassword({ email, password });
+              setAuthLoading(false);
+              if (error) {
+                setAuthError(error.message);
+                return;
+              }
+
               setIsLoggedIn(true);
               navigate("/ventas");
             }}
