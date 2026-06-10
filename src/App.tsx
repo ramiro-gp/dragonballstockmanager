@@ -423,6 +423,20 @@ export function App() {
     };
 
     if (supabase) {
+      const { data: rpcSaleId, error: rpcError } = await supabase.rpc("create_pending_sale", {
+        p_seller_id: sale.sellerId,
+        p_customer_name: sale.customerName,
+        p_customer_whatsapp: sale.customerWhatsapp,
+        p_customer_note: sale.note,
+        p_lines: sale.lines.map(saleLineToRpcPayload),
+      });
+
+      if (!rpcError && rpcSaleId) {
+        await loadSellerSalesFromSupabase(sale.sellerId);
+        setCart([]);
+        return;
+      }
+
       const { data } = await supabase
         .from("sales")
         .insert({
@@ -508,10 +522,23 @@ export function App() {
     }
 
     const nextSale = { ...sale, status, stockApplied: nextShouldApply };
+
+    if (supabase) {
+      const { error: rpcError } = await supabase.rpc("set_sale_status", {
+        p_sale_id: saleId,
+        p_status: toSupabaseStatus(status),
+      });
+
+      if (!rpcError) {
+        await loadSellerInventoryFromSupabase(currentSeller.id);
+        await loadSellerSalesFromSupabase(currentSeller.id);
+        return;
+      }
+    }
+
     setStock(nextStock);
     setProducts(nextProducts);
     setSales((current) => current.map((item) => item.id === saleId ? nextSale : item));
-
     await persistSaleToSupabase(nextSale);
     if (supabase) {
       await saveManagedCardsToSupabase(nextStock.filter((item) => item.sellerId === currentSeller.id));
@@ -839,6 +866,14 @@ function fromSupabaseStatus(status: string): SaleStatus {
 }
 
 function saleLineToSupabaseInsert(saleId: string, sellerId: string, line: SaleLine) {
+  return {
+    sale_id: saleId,
+    seller_id: sellerId,
+    ...saleLineToRpcPayload(line),
+  };
+}
+
+function saleLineToRpcPayload(line: SaleLine) {
   const isProduct = line.itemType === "product";
   const cardNumber = isProduct ? null : Number.parseInt(line.label.match(/Carta\s+(\d+)/i)?.[1] ?? "", 10);
   const cardDescription = line.label
@@ -848,8 +883,6 @@ function saleLineToSupabaseInsert(saleId: string, sellerId: string, line: SaleLi
   const [variantType = "", ...colorParts] = cardDescription.split(/\s+/).filter(Boolean);
 
   return {
-    sale_id: saleId,
-    seller_id: sellerId,
     item_type: line.itemType,
     stock_card_id: isProduct ? null : line.itemId,
     stock_product_id: isProduct ? line.itemId : null,

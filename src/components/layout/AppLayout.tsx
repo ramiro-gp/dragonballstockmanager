@@ -25,7 +25,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.20.0";
+const APP_VERSION = "v0.21.0";
 
 export function AppLayout({
   children,
@@ -188,22 +188,23 @@ export function AppLayout({
 function AppFooter({ navigate }: { navigate: (route: Route) => void }) {
   return (
     <footer className="app-footer">
-      <div className="footer-identity">
-        <Brand compact />
-        <div>
-          <p>Todos los derechos reservados. Desarrollado por <a href="https://ramirogp.me" target="_blank" rel="noreferrer">Ramiro</a>.</p>
-          <span className="app-version">{APP_VERSION}</span>
+      <div className="footer-main">
+        <div className="footer-identity">
+          <Brand compact />
+          <strong>Dragon Ball Stock Manager</strong>
         </div>
-      </div>
-      <div className="footer-stack">
         <div className="footer-actions donation-actions">
-          <span>Ayudame con una donación</span>
+          <span>Ayudame con una donacion</span>
           <a className="small-button subtle" href="https://cafecito.app/ramitag" target="_blank" rel="noreferrer">Cafecito</a>
           <MercadoPagoButton className="small-button subtle" />
         </div>
         <div className="footer-actions vendor-footer-action">
           <button className="primary-button compact" onClick={() => navigate("/quiero-vender")}>Quiero ser vendedor</button>
         </div>
+      </div>
+      <div className="footer-legal">
+        <p>© Todos los derechos reservados. Desarrollado por <a href="https://ramirogp.me" target="_blank" rel="noreferrer">Ramiro</a>.</p>
+        <span className="app-version">{APP_VERSION}</span>
       </div>
     </footer>
   );

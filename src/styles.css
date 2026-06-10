@@ -880,7 +880,7 @@ select:focus-visible {
 .app-footer {
   position: relative;
   display: grid;
-  gap: 1rem;
+  gap: 1.2rem;
   margin-top: auto;
   padding: 2.25rem 0 0;
   color: var(--muted);
@@ -900,7 +900,9 @@ select:focus-visible {
 .footer-identity {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.85rem;
+  width: 100%;
 }
 
 .app-footer strong {
@@ -914,11 +916,17 @@ select:focus-visible {
 }
 
 .app-version {
-  display: inline-block;
+  display: block;
   margin-top: 0.25rem;
   color: var(--orange);
   font-size: 0.76rem;
   font-weight: 900;
+}
+
+.footer-main {
+  display: grid;
+  gap: 1rem;
+  align-items: center;
 }
 
 .footer-actions {
@@ -928,9 +936,17 @@ select:focus-visible {
   align-items: center;
 }
 
-.footer-stack {
+.footer-actions.donation-actions {
   display: grid;
-  gap: 0.8rem;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  justify-self: center;
+  width: min(100%, 360px);
+}
+
+.footer-actions.donation-actions span {
+  grid-column: 1 / -1;
+  text-align: center;
 }
 
 .small-button.subtle {
@@ -939,7 +955,18 @@ select:focus-visible {
 }
 
 .vendor-footer-action {
-  justify-content: flex-start;
+  justify-content: center;
+}
+
+.footer-legal {
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  text-align: center;
+}
+
+.footer-legal p {
+  margin: 0;
 }
 
 .footer-actions span {
@@ -1691,6 +1718,10 @@ textarea.input {
   background: color-mix(in srgb, var(--orange) 12%, var(--soft));
 }
 
+.plan-card.highlighted strong {
+  color: var(--orange);
+}
+
 .plan-card span {
   color: var(--muted);
   font-size: 0.8rem;
@@ -1914,7 +1945,7 @@ textarea.input {
   }
 
   .footer-identity,
-  .footer-stack,
+  .footer-main,
   .vendor-footer-action {
     width: 100%;
   }
@@ -2025,12 +2056,20 @@ textarea.input {
   }
 
   .app-footer {
-    grid-template-columns: 1fr auto;
+    align-items: stretch;
+  }
+
+  .footer-main {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 360px) auto;
     align-items: center;
   }
 
-  .footer-stack {
-    justify-items: end;
+  .footer-identity {
+    justify-content: flex-start;
+  }
+
+  .vendor-footer-action {
+    justify-content: flex-end;
   }
 
   .balance-pill {
