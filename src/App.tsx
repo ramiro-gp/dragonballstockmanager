@@ -172,7 +172,7 @@ export function App() {
             navigate={navigate}
             login={() => {
               setIsLoggedIn(true);
-              navigate("/panel");
+              navigate("/ventas");
             }}
           />
         )}

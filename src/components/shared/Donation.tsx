@@ -1,5 +1,11 @@
 import { useState } from "react";
 
+const mercadoPagoData = {
+  alias: import.meta.env.VITE_MP_ALIAS || "Configurar alias",
+  cvu: import.meta.env.VITE_MP_CVU || "Configurar CVU",
+  holder: import.meta.env.VITE_MP_HOLDER || "Configurar titular",
+};
+
 export function Donation() {
   const [open, setOpen] = useState(false);
 
@@ -26,9 +32,9 @@ export function Donation() {
               <button className="ghost-icon" onClick={() => setOpen(false)} aria-label="Cerrar">X</button>
             </div>
             <div className="mt-4 space-y-3">
-              <CopyRow label="Alias" value="ramitagarcia" />
-              <CopyRow label="CVU" value="0000003100031211954787" />
-              <InfoRow label="Titular" value="Ramiro Ariel Garcia Perucho" />
+              <CopyRow label="Alias" value={mercadoPagoData.alias} />
+              <CopyRow label="CVU" value={mercadoPagoData.cvu} />
+              <InfoRow label="Titular" value={mercadoPagoData.holder} />
             </div>
           </div>
         </div>
@@ -53,9 +59,9 @@ export function MercadoPagoButton({ className = "small-button" }: { className?: 
               <button className="ghost-icon" onClick={() => setOpen(false)} aria-label="Cerrar">X</button>
             </div>
             <div className="mt-4 space-y-3">
-              <CopyRow label="Alias" value="ramitagarcia" />
-              <CopyRow label="CVU" value="0000003100031211954787" />
-              <InfoRow label="Titular" value="Ramiro Ariel Garcia Perucho" />
+              <CopyRow label="Alias" value={mercadoPagoData.alias} />
+              <CopyRow label="CVU" value={mercadoPagoData.cvu} />
+              <InfoRow label="Titular" value={mercadoPagoData.holder} />
             </div>
           </div>
         </div>

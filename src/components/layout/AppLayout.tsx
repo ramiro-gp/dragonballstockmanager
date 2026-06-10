@@ -24,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.3.0";
+const APP_VERSION = "v0.4.0";
 
 export function AppLayout({
   children,
@@ -147,20 +147,16 @@ export function AppLayout({
             <span>{isLoggedIn ? "Menú vendedor" : "Menú"}</span>
           </div>
           <div className="mobile-menu-list">
-            {isLoggedIn ? (
-              nav.map((item) => (
-                <button key={item.route} onClick={() => go(item.route)} className={clsx("mobile-menu-item", route === item.route && "active")}>
-                  <item.icon size={18} />
-                  {item.label}
-                </button>
-              ))
-            ) : (
-              <>
-                <button className="mobile-menu-item" onClick={() => go("/")}>Stock</button>
-                <button className="mobile-menu-item primary" onClick={() => go("/quiero-vender")}>Quiero ser vendedor</button>
-                <button className="mobile-menu-item" onClick={() => go("/login")}><LogIn size={18} /> Login</button>
-              </>
-            )}
+            {(isLoggedIn ? nav : [
+              { route: "/", label: "Stock", icon: Home },
+              { route: "/login", label: "Login", icon: LogIn },
+              { route: "/quiero-vender", label: "Quiero ser vendedor", icon: UserPlus, primary: true },
+            ] as const).map((item) => (
+              <button key={item.route} onClick={() => go(item.route)} className={clsx("mobile-menu-item", route === item.route && "active", "primary" in item && item.primary && "primary")}>
+                <item.icon size={18} />
+                {item.label}
+              </button>
+            ))}
           </div>
           <div className="mobile-menu-actions">
             <button className="secondary-button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
