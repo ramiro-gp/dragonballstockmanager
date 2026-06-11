@@ -4,6 +4,11 @@ import { APP_LIMITS } from "../lib/limits";
 import { isValidArgentinaWhatsapp, normalizeArgentinaWhatsapp, whatsappHint } from "../lib/whatsapp";
 
 const shippingOptions = ["Correo Argentino", "Mercado Libre", "Andreani", "OCA"];
+const provinces = [
+  "CABA", "Buenos Aires", "Catamarca", "Chaco", "Chubut", "Cordoba", "Corrientes", "Entre Rios",
+  "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquen", "Rio Negro",
+  "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucuman",
+];
 
 export function SettingsPage({
   seller,
@@ -11,23 +16,29 @@ export function SettingsPage({
   isSuperAdmin,
   navigateCreateSeller,
   onSaveProfile,
+  onChangePassword,
 }: {
   seller: Seller;
   sellers: Seller[];
   isSuperAdmin: boolean;
   navigateCreateSeller: () => void;
   onSaveProfile: (patch: SellerProfilePatch) => Promise<boolean>;
+  onChangePassword: (password: string) => Promise<boolean>;
 }) {
   const [name, setName] = useState(seller.name);
   const [whatsapp, setWhatsapp] = useState(seller.whatsapp);
+  const [location, setLocation] = useState(seller.location);
   const [shippingEnabled, setShippingEnabled] = useState(seller.shippingEnabled);
   const [shippingCompanies, setShippingCompanies] = useState<string[]>(seller.shippingCompanies);
   const [otherShipping, setOtherShipping] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setName(seller.name);
     setWhatsapp(seller.whatsapp);
+    setLocation(seller.location);
     setShippingEnabled(seller.shippingEnabled);
     setShippingCompanies(seller.shippingCompanies);
   }, [seller]);
@@ -38,22 +49,51 @@ export function SettingsPage({
     );
   }
 
-  async function saveProfile() {
-    if (!name.trim()) return;
-    if (!isValidArgentinaWhatsapp(whatsapp)) return;
-
-    setSaving(true);
-    const normalizedWhatsapp = normalizeArgentinaWhatsapp(whatsapp);
-    const companies = [...shippingCompanies, otherShipping.trim()].filter(Boolean);
-    const ok = await onSaveProfile({
-      name: name.trim(),
-      whatsapp: normalizedWhatsapp,
-      shippingEnabled,
-      shippingCompanies: shippingEnabled ? Array.from(new Set(companies)) : [],
-    });
-    setSaving(false);
-    if (ok) setWhatsapp(normalizedWhatsapp);
+  function addOtherShipping() {
+    const value = otherShipping.trim();
+    if (!value) return;
+    setShippingCompanies((current) => Array.from(new Set([...current, value])));
+    setOtherShipping("");
   }
+
+  async function saveProfile() {
+    if (!name.trim() || !isValidArgentinaWhatsapp(whatsapp)) return;
+    const ok = await save({
+      name: name.trim(),
+      whatsapp: normalizeArgentinaWhatsapp(whatsapp),
+      location,
+      shippingEnabled,
+      shippingCompanies,
+    });
+
+    if (ok && password && !passwordMismatch) {
+      const passwordOk = await onChangePassword(password);
+      if (passwordOk) {
+        setPassword("");
+        setPasswordConfirm("");
+      }
+    }
+  }
+
+  async function saveShipping() {
+    await save({
+      name: name.trim(),
+      whatsapp: normalizeArgentinaWhatsapp(whatsapp),
+      location,
+      shippingEnabled,
+      shippingCompanies: shippingEnabled ? shippingCompanies : [],
+    });
+  }
+
+  async function save(patch: SellerProfilePatch) {
+    setSaving(true);
+    const ok = await onSaveProfile(patch);
+    setSaving(false);
+    if (ok) setWhatsapp(patch.whatsapp);
+    return ok;
+  }
+
+  const passwordMismatch = Boolean(password || passwordConfirm) && password !== passwordConfirm;
 
   return (
     <div className="settings-grid">
@@ -66,14 +106,28 @@ export function SettingsPage({
             <input value={name} onChange={(event) => setName(event.target.value)} maxLength={APP_LIMITS.sellerDisplayNameMaxLength} />
           </label>
           <label className="field">
+            <span>Ubicacion</span>
+            <select value={location} onChange={(event) => setLocation(event.target.value)}>
+              {provinces.map((province) => <option key={province} value={province}>{province}</option>)}
+            </select>
+          </label>
+          <label className="field">
             <span>WhatsApp</span>
             <input value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} maxLength={24} placeholder="11 1234 5678" />
           </label>
           <p className={isValidArgentinaWhatsapp(whatsapp) ? "field-hint" : "field-hint error"}>{whatsappHint(whatsapp)}</p>
           <label className="field">
             <span>Nueva contrasena</span>
-            <input type="password" placeholder="Opcional" maxLength={120} disabled />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Opcional" maxLength={120} />
           </label>
+          <label className="field">
+            <span>Confirmar nueva contrasena</span>
+            <input value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} type="password" placeholder="Repeti la contrasena" maxLength={120} />
+          </label>
+          {passwordMismatch && <p className="field-hint error">Las contrasenas no coinciden.</p>}
+          <button className="primary-button compact" onClick={saveProfile} disabled={saving || passwordMismatch || !isValidArgentinaWhatsapp(whatsapp) || !name.trim()}>
+            {saving ? "Guardando..." : "Guardar datos"}
+          </button>
         </div>
       </section>
 
@@ -91,12 +145,24 @@ export function SettingsPage({
               {company}
             </label>
           ))}
-          <label className="field">
-            <span>Otro correo</span>
-            <input value={otherShipping} onChange={(event) => setOtherShipping(event.target.value)} placeholder="Nombre de la empresa" maxLength={40} disabled={!shippingEnabled} />
-          </label>
-          <button className="primary-button compact" onClick={saveProfile} disabled={saving || !isValidArgentinaWhatsapp(whatsapp) || !name.trim()}>
-            {saving ? "Guardando..." : "Guardar ajustes"}
+          {shippingCompanies.filter((company) => !shippingOptions.includes(company)).length > 0 && (
+            <div className="chip-list">
+              {shippingCompanies.filter((company) => !shippingOptions.includes(company)).map((company) => (
+                <button key={company} className="chip-remove" onClick={() => setShippingCompanies((current) => current.filter((item) => item !== company))}>
+                  {company} x
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="inline-field">
+            <label className="field">
+              <span>Otro correo</span>
+              <input value={otherShipping} onChange={(event) => setOtherShipping(event.target.value)} placeholder="Nombre de la empresa" maxLength={40} disabled={!shippingEnabled} />
+            </label>
+            <button className="secondary-button compact" onClick={addOtherShipping} disabled={!shippingEnabled || !otherShipping.trim()}>Agregar</button>
+          </div>
+          <button className="primary-button compact" onClick={saveShipping} disabled={saving}>
+            {saving ? "Guardando..." : "Guardar envios"}
           </button>
         </div>
       </section>

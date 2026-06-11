@@ -22,11 +22,13 @@ export type Seller = {
   subscriptionPlan: "monthly" | "quarterly" | "semester" | "lifetime" | "owner";
   shippingEnabled: boolean;
   shippingCompanies: string[];
+  location: string;
 };
 
 export type SellerProfilePatch = {
   name: string;
   whatsapp: string;
+  location: string;
   shippingEnabled: boolean;
   shippingCompanies: string[];
 };

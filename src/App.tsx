@@ -126,12 +126,12 @@ export function App() {
 
     const { data: sellerData, error: sellerError } = await supabase
       .from("sellers")
-      .select("id, slug, display_name, whatsapp, role, active, created_at, shipping_enabled, shipping_companies, subscription_until, subscription_plan")
+      .select("id, slug, display_name, whatsapp, role, active, created_at, shipping_enabled, shipping_companies, location, subscription_until, subscription_plan")
       .eq("id", userId)
       .single();
 
     if (sellerError || !sellerData) {
-      setAuthError("Tu usuario existe, pero no encontré su perfil de vendedor.");
+      setAuthError("No encontre un vendedor vinculado a este login. Revisa que el usuario de Auth coincida con public.sellers.");
       return;
     }
 
@@ -165,7 +165,7 @@ export function App() {
 
     const { data } = await supabase
       .from("sellers")
-      .select("id, slug, display_name, whatsapp, role, active, created_at, shipping_enabled, shipping_companies, subscription_until, subscription_plan")
+      .select("id, slug, display_name, whatsapp, role, active, created_at, shipping_enabled, shipping_companies, location, subscription_until, subscription_plan")
       .eq("active", true);
 
     if (!data?.length) return;
@@ -184,6 +184,7 @@ export function App() {
       ...currentSeller,
       name: patch.name,
       whatsapp: patch.whatsapp,
+      location: patch.location,
       shippingEnabled: patch.shippingEnabled,
       shippingCompanies: patch.shippingCompanies,
     };
@@ -194,6 +195,7 @@ export function App() {
         .update({
           display_name: patch.name,
           whatsapp: patch.whatsapp,
+          location: patch.location,
           shipping_enabled: patch.shippingEnabled,
           shipping_companies: patch.shippingCompanies,
         })
@@ -208,6 +210,22 @@ export function App() {
     setCurrentSeller(nextSeller);
     setSellerDirectory((current) => upsertMainSeller(current, nextSeller));
     notify("success", "Ajustes guardados.");
+    return true;
+  }
+
+  async function changePassword(password: string) {
+    if (!supabase) {
+      notify("error", "No hay conexion con Supabase para cambiar la contrasena.");
+      return false;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      notify("error", "No pude cambiar la contrasena.");
+      return false;
+    }
+
+    notify("success", "Contrasena actualizada.");
     return true;
   }
 
@@ -800,6 +818,7 @@ export function App() {
             isSuperAdmin={currentSeller.role === "admin"}
             navigateCreateSeller={() => navigate("/crear-vendedor")}
             onSaveProfile={saveSellerProfile}
+            onChangePassword={changePassword}
           />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/crear-vendedor" && <CreateSellerPage />}
@@ -845,6 +864,7 @@ function mapSupabaseSeller(row: {
   created_at: string;
   shipping_enabled?: boolean | null;
   shipping_companies?: string[] | null;
+  location?: string | null;
   subscription_until?: string | null;
   subscription_plan?: string | null;
 }): Seller {
@@ -862,6 +882,7 @@ function mapSupabaseSeller(row: {
     subscriptionPlan: row.role === "owner" ? "owner" : (row.subscription_plan as Seller["subscriptionPlan"] | null) ?? fallbackSeller.subscriptionPlan,
     shippingEnabled: row.shipping_enabled ?? fallbackSeller.shippingEnabled,
     shippingCompanies: row.shipping_companies ?? fallbackSeller.shippingCompanies,
+    location: row.location ?? fallbackSeller.location,
   };
 }
 

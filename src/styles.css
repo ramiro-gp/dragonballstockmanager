@@ -1066,6 +1066,30 @@ textarea.input {
   color: var(--danger);
 }
 
+.inline-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip-remove {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 0.7rem;
+  background: var(--soft);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .toast-viewport {
   position: fixed;
   right: 1rem;

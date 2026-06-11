@@ -17,6 +17,7 @@ export const sellers: Seller[] = [
     subscriptionPlan: "owner",
     shippingEnabled: true,
     shippingCompanies: ["Correo Argentino", "Mercado Libre"],
+    location: "CABA",
   },
   {
     id: "seller-capsule",
@@ -31,6 +32,7 @@ export const sellers: Seller[] = [
     subscriptionPlan: "monthly",
     shippingEnabled: false,
     shippingCompanies: [],
+    location: "Buenos Aires",
   },
 ];
 

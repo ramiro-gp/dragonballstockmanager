@@ -90,8 +90,11 @@ export function PublicStockPage({
             <ShieldCheck size={22} />
             <span>Stock visible: {seller.name}</span>
           </div>
+          {seller.location && (
+            <small><Truck size={14} /> Ubicacion: {seller.location}</small>
+          )}
           {seller.shippingEnabled && (
-            <small><Truck size={14} /> Realiza envíos con {seller.shippingCompanies.join(", ")}.</small>
+            <small><Truck size={14} /> Realiza envios con {seller.shippingCompanies.join(", ")}.</small>
           )}
         </div>
       </div>
