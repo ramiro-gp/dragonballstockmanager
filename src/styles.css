@@ -170,6 +170,7 @@ select:focus-visible {
 .icon-button,
 .primary-button,
 .secondary-button,
+.danger-button,
 .small-button,
 .status-button,
 .login-button,
@@ -189,6 +190,7 @@ select:focus-visible {
 .icon-button:hover,
 .primary-button:hover,
 .secondary-button:hover,
+.danger-button:hover,
 .small-button:hover,
 .status-button:hover,
 .login-button:hover,
@@ -220,6 +222,7 @@ select:focus-visible {
 .icon-button:active,
 .primary-button:active,
 .secondary-button:active,
+.danger-button:active,
 .small-button:active,
 .status-button:active,
 .login-button:active,
@@ -310,7 +313,8 @@ select:focus-visible {
 }
 
 .secondary-button,
-.small-button {
+.small-button,
+.danger-button {
   min-height: 42px;
   padding: 0 1rem;
   background: var(--soft);
@@ -323,6 +327,21 @@ select:focus-visible {
   min-height: 34px;
   padding: 0 0.5rem;
   font-size: 0.78rem;
+}
+
+.danger-button {
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+  color: var(--danger);
+}
+
+.danger-button:hover {
+  background: color-mix(in srgb, var(--danger) 10%, var(--soft));
+  border-color: color-mix(in srgb, var(--danger) 65%, var(--line));
+}
+
+.danger-button.compact {
+  min-height: 36px;
+  padding: 0 0.85rem;
 }
 
 .app-header {
@@ -1454,9 +1473,23 @@ textarea.input {
   padding: 0 0.6rem;
 }
 
+.table-check {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+}
+
+.table-check input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  accent-color: var(--orange);
+}
+
 .card-manage-row {
-  grid-template-columns: 86px 150px minmax(190px, 1fr) 74px 104px 36px;
-  min-width: 700px;
+  grid-template-columns: 32px 86px 150px minmax(190px, 1fr) 74px 104px 36px;
+  min-width: 740px;
 }
 
 .product-manage-row {

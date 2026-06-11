@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { Check, ChevronDown, Filter, LayoutGrid, List, Plus, ShoppingCart, ShieldCheck, Truck, Wand2 } from "lucide-react";
+import { Check, ChevronDown, Filter, LayoutGrid, List, MapPin, Plus, ShoppingCart, ShieldCheck, Truck, Wand2 } from "lucide-react";
 import type { Route } from "../app/routes";
 import type { CardStock, CartLine, Product, Seller } from "../lib/types";
 import { availableQuantity, cartTotal, formatMoney, kindLabel, parseCardList } from "../lib/helpers";
@@ -91,10 +91,10 @@ export function PublicStockPage({
             <span>Stock visible: {seller.name}</span>
           </div>
           {seller.location && (
-            <small><Truck size={14} /> Ubicacion: {seller.location}</small>
+            <small><MapPin size={14} /> Ubicación: {seller.location}</small>
           )}
           {seller.shippingEnabled && (
-            <small><Truck size={14} /> Realiza envios con {seller.shippingCompanies.join(", ")}.</small>
+            <small><Truck size={14} /> Realiza envíos con {seller.shippingCompanies.join(", ")}.</small>
           )}
         </div>
       </div>

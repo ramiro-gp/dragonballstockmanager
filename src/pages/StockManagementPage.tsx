@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Save, Trash2 } from "lucide-react";
 import { getColorOptions } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product } from "../lib/types";
-import { formatMoney, kindLabel } from "../lib/helpers";
+import { formatMoney, kindLabel, parseCardList } from "../lib/helpers";
 import { SEARCH_FILTERS } from "../lib/limits";
 import { sortCardStock } from "../lib/sorting";
+import { Pagination } from "../components/shared/Pagination";
 
 const productCategories: Array<{ value: Product["category"]; label: string }> = [
   { value: "lote", label: "Lote" },
@@ -14,6 +15,8 @@ const productCategories: Array<{ value: Product["category"]; label: string }> = 
   { value: "figurita", label: "Figurita" },
   { value: "otro", label: "Otro" },
 ];
+
+const cardPageSize = 30;
 
 export function StockManagementPage({
   sellerId,
@@ -36,20 +39,32 @@ export function StockManagementPage({
   const [draftProducts, setDraftProducts] = useState<Product[]>(products);
   const [savedMessage, setSavedMessage] = useState("");
   const [expansionFilter, setExpansionFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
+  const [cardQuery, setCardQuery] = useState("");
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [cardPage, setCardPage] = useState(1);
 
   useEffect(() => setDraftStock(stock), [stock]);
   useEffect(() => setDraftProducts(products), [products]);
+  useEffect(() => setSelectedCardIds((current) => current.filter((id) => draftStock.some((item) => item.id === id))), [draftStock]);
+  useEffect(() => setCardPage(1), [expansionFilter, kindFilter, cardQuery]);
 
   const cardsDirty = useMemo(() => JSON.stringify(draftStock) !== JSON.stringify(stock), [draftStock, stock]);
   const productsDirty = useMemo(() => JSON.stringify(draftProducts) !== JSON.stringify(products), [draftProducts, products]);
   const stockValue = draftStock.reduce((sum, item) => sum + item.quantity * item.price, 0) + draftProducts.reduce((sum, item) => sum + item.quantity * item.price, 0);
+  const queryNumbers = parseCardList(cardQuery);
   const visibleStock = useMemo(
     () => [...draftStock]
       .filter((item) => !expansionFilter || item.expansion === expansionFilter)
+      .filter((item) => !kindFilter || item.kind === kindFilter)
+      .filter((item) => !queryNumbers.length || queryNumbers.includes(item.number.toUpperCase()))
       .sort(sortCardStock),
-    [draftStock, expansionFilter],
+    [draftStock, expansionFilter, kindFilter, queryNumbers],
   );
+  const visibleStockPage = visibleStock.slice((cardPage - 1) * cardPageSize, cardPage * cardPageSize);
   const sortedProducts = useMemo(() => [...draftProducts].sort((a, b) => a.name.localeCompare(b.name)), [draftProducts]);
+  const selectedVisibleIds = visibleStock.map((item) => item.id);
+  const allVisibleSelected = selectedVisibleIds.length > 0 && selectedVisibleIds.every((id) => selectedCardIds.includes(id));
 
   function updateCard(itemId: string, patch: Partial<Pick<CardStock, "quantity" | "price" | "kind" | "variant">>) {
     setSavedMessage("");
@@ -64,7 +79,34 @@ export function StockManagementPage({
   function discardChanges() {
     setDraftStock(stock);
     setDraftProducts(products);
+    setSelectedCardIds([]);
     setSavedMessage("");
+  }
+
+  function toggleCardSelection(itemId: string) {
+    setSelectedCardIds((current) => current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId]);
+  }
+
+  function toggleAllVisibleCards() {
+    setSelectedCardIds((current) => {
+      if (allVisibleSelected) return current.filter((id) => !selectedVisibleIds.includes(id));
+      return Array.from(new Set([...current, ...selectedVisibleIds]));
+    });
+  }
+
+  function subtractSelectedCards() {
+    if (!selectedCardIds.length) return;
+    const ok = window.confirm(`Vas a borrar 1 unidad de ${selectedCardIds.length} fila(s) seleccionada(s). Después tenés que guardar cambios.`);
+    if (!ok) return;
+
+    setSavedMessage("");
+    setDraftStock((current) => current.flatMap((item) => {
+      if (!selectedCardIds.includes(item.id)) return [item];
+      const nextQuantity = Math.max(item.reserved, item.quantity - 1);
+      if (nextQuantity <= 0) return [];
+      return [{ ...item, quantity: nextQuantity }];
+    }));
+    setSelectedCardIds([]);
   }
 
   async function saveCardChanges() {
@@ -73,6 +115,7 @@ export function StockManagementPage({
       ...current.filter((item) => item.sellerId !== sellerId),
       ...(savedRows ?? draftStock.map((item) => ({ ...item, sellerId }))),
     ]);
+    setSelectedCardIds([]);
     setSavedMessage("Cartas guardadas.");
   }
 
@@ -91,7 +134,7 @@ export function StockManagementPage({
         <div>
           <p className="eyebrow">Gestionar</p>
           <h2 className="panel-title">Editar stock publicado</h2>
-          <p className="mt-2 text-sm text-[var(--muted)]">Ajusta cantidades, precios, variantes o productos. Cada tabla se guarda por separado.</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Ajustá cantidades, precios, variantes o productos. Cada tabla se guarda por separado.</p>
         </div>
       </section>
 
@@ -106,16 +149,33 @@ export function StockManagementPage({
         <div className="section-heading">
           <div>
             <h3>Cartas</h3>
-            <span>{visibleStock.length} visibles</span>
+            <span>{visibleStock.length} visibles · {selectedCardIds.length} seleccionadas</span>
           </div>
           <div className="table-actions">
             <label className="field compact-field">
-              <span>Expansion</span>
+              <span>Buscar cartas</span>
+              <input value={cardQuery} onChange={(event) => setCardQuery(event.target.value)} placeholder="880 881 1275" />
+            </label>
+            <label className="field compact-field">
+              <span>Expansión</span>
               <select value={expansionFilter} onChange={(event) => setExpansionFilter(event.target.value)}>
                 <option value="">Todas</option>
                 {SEARCH_FILTERS.expansions.filter((item) => item !== "todas").map((expansion) => <option key={expansion} value={expansion}>{expansion}</option>)}
               </select>
             </label>
+            <label className="field compact-field">
+              <span>Variante</span>
+              <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}>
+                <option value="">Todas</option>
+                <option value="comun">{kindLabel.comun}</option>
+                <option value="fluor">{kindLabel.fluor}</option>
+                <option value="holo">{kindLabel.holo}</option>
+              </select>
+            </label>
+            <button className="danger-button compact" onClick={subtractSelectedCards} disabled={!selectedCardIds.length}>
+              <Trash2 size={16} />
+              Borrar 1 carta por selección
+            </button>
             <button className="secondary-button compact" onClick={discardChanges} disabled={!cardsDirty && !productsDirty}>
               <RotateCcw size={16} />
               Descartar
@@ -128,6 +188,9 @@ export function StockManagementPage({
         </div>
         <div className="stock-table">
           <div className="manage-row card-manage-row manage-row-header">
+            <label className="table-check" title="Seleccionar todas las filas filtradas">
+              <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisibleCards} disabled={!visibleStock.length} />
+            </label>
             <span>N° carta</span>
             <span>Variante</span>
             <span>Color variante</span>
@@ -135,8 +198,11 @@ export function StockManagementPage({
             <span>Precio</span>
             <span></span>
           </div>
-          {visibleStock.map((item) => (
+          {visibleStockPage.map((item) => (
             <div key={item.id} className="manage-row card-manage-row">
+              <label className="table-check">
+                <input type="checkbox" checked={selectedCardIds.includes(item.id)} onChange={() => toggleCardSelection(item.id)} aria-label={`Seleccionar carta ${item.number}`} />
+              </label>
               <strong>{item.number}</strong>
               <select value={item.kind} onChange={(event) => updateCard(item.id, { kind: event.target.value as CardKind })} aria-label={`Variante carta ${item.number}`}>
                 <option value="comun">{kindLabel.comun}</option>
@@ -153,8 +219,10 @@ export function StockManagementPage({
               </button>
             </div>
           ))}
-          {!draftStock.length && <p className="empty">Todavia no hay cartas publicadas.</p>}
+          {!draftStock.length && <p className="empty">Todavía no hay cartas publicadas.</p>}
+          {draftStock.length > 0 && !visibleStock.length && <p className="empty">No hay cartas con esos filtros.</p>}
         </div>
+        <Pagination page={cardPage} pageSize={cardPageSize} total={visibleStock.length} onPageChange={setCardPage} />
       </section>
 
       <section className="tool-surface">
@@ -173,11 +241,11 @@ export function StockManagementPage({
         </div>
         <div className="stock-table">
           <div className="manage-row product-manage-row manage-row-header">
-            <span>Categoria</span>
+            <span>Categoría</span>
             <span>Producto</span>
             <span>Cantidad</span>
             <span>Precio</span>
-            <span>Descripcion</span>
+            <span>Descripción</span>
             <span>Foto</span>
             <span></span>
           </div>
@@ -196,7 +264,7 @@ export function StockManagementPage({
               </button>
             </div>
           ))}
-          {!draftProducts.length && <p className="empty">Todavia no hay productos publicados.</p>}
+          {!draftProducts.length && <p className="empty">Todavía no hay productos publicados.</p>}
         </div>
       </section>
     </div>
