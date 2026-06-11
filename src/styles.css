@@ -1055,6 +1055,46 @@ textarea.input {
   font-weight: 700;
 }
 
+.field-hint {
+  margin: -0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.field-hint.error {
+  color: var(--danger);
+}
+
+.toast-viewport {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 80;
+  display: grid;
+  gap: 0.65rem;
+  width: min(360px, calc(100vw - 2rem));
+}
+
+.toast-message {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  text-align: left;
+  font-weight: 800;
+}
+
+.toast-message.success {
+  border-color: color-mix(in srgb, var(--success) 50%, var(--line));
+}
+
+.toast-message.error {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+}
+
 .item-card {
   padding: 1.1rem;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;

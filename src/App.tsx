@@ -4,8 +4,9 @@ import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
 import { availableQuantity, cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
+import { compressProductImage } from "./lib/images";
 import { supabase } from "./lib/supabase";
-import type { CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerSettings, Theme } from "./lib/types";
+import type { CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
 import { CartPage } from "./pages/CartPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -46,6 +47,7 @@ export function App() {
   const [currentSeller, setCurrentSeller] = useState<Seller>(() => readStorage(STORAGE_KEYS.currentSeller, fallbackSeller));
   const [sellerDirectory, setSellerDirectory] = useState<Seller[]>(() => upsertMainSeller(sellers, readStorage(STORAGE_KEYS.currentSeller, fallbackSeller)));
   const [sellerSettings, setSellerSettings] = useState<SellerSettings>(fallbackSellerSettings);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage(STORAGE_KEYS.sidebarCollapsed, false));
   const [stock, setStock] = useState<CardStock[]>(() => readStorage(STORAGE_KEYS.stock, initialStock));
   const [products, setProducts] = useState<Product[]>(() => readStorage(STORAGE_KEYS.products, initialProducts));
@@ -111,12 +113,20 @@ export function App() {
     setRoute(nextRoute);
   }
 
+  function notify(kind: ToastKind, text: string) {
+    const id = crypto.randomUUID();
+    setToasts((current) => [...current, { id, kind, text }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 3600);
+  }
+
   async function loadSellerFromSupabase(userId: string) {
     if (!supabase) return;
 
     const { data: sellerData, error: sellerError } = await supabase
       .from("sellers")
-      .select("id, slug, display_name, whatsapp, role, active, created_at")
+      .select("id, slug, display_name, whatsapp, role, active, created_at, shipping_enabled, shipping_companies, subscription_until, subscription_plan")
       .eq("id", userId)
       .single();
 
@@ -155,7 +165,7 @@ export function App() {
 
     const { data } = await supabase
       .from("sellers")
-      .select("id, slug, display_name, whatsapp, role, active, created_at")
+      .select("id, slug, display_name, whatsapp, role, active, created_at, shipping_enabled, shipping_companies, subscription_until, subscription_plan")
       .eq("active", true);
 
     if (!data?.length) return;
@@ -167,6 +177,38 @@ export function App() {
       { ...main, isMain: true },
       ...mapped.filter((seller) => seller.id !== main.id).map((seller) => ({ ...seller, isMain: false })),
     ]);
+  }
+
+  async function saveSellerProfile(patch: SellerProfilePatch) {
+    const nextSeller = {
+      ...currentSeller,
+      name: patch.name,
+      whatsapp: patch.whatsapp,
+      shippingEnabled: patch.shippingEnabled,
+      shippingCompanies: patch.shippingCompanies,
+    };
+
+    if (supabase) {
+      const { error } = await supabase
+        .from("sellers")
+        .update({
+          display_name: patch.name,
+          whatsapp: patch.whatsapp,
+          shipping_enabled: patch.shippingEnabled,
+          shipping_companies: patch.shippingCompanies,
+        })
+        .eq("id", currentSeller.id);
+
+      if (error) {
+        notify("error", "No pude guardar los ajustes del vendedor.");
+        return false;
+      }
+    }
+
+    setCurrentSeller(nextSeller);
+    setSellerDirectory((current) => upsertMainSeller(current, nextSeller));
+    notify("success", "Ajustes guardados.");
+    return true;
   }
 
   async function loadSellerInventoryFromSupabase(sellerId: string) {
@@ -327,6 +369,28 @@ export function App() {
 
   async function publishProductToSupabase(product: PublishProductInput) {
     if (!supabase) return null;
+    let imageUrl = product.imageUrl;
+
+    if (product.imageFile) {
+      try {
+        const compressed = await compressProductImage(product.imageFile);
+        const path = `${currentSeller.id}/${crypto.randomUUID()}.webp`;
+        const { error: uploadError } = await supabase.storage
+          .from("product-images")
+          .upload(path, compressed, { contentType: "image/webp", upsert: false });
+
+        if (uploadError) {
+          notify("error", "No pude subir la foto del producto.");
+          return null;
+        }
+
+        const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+        imageUrl = data.publicUrl;
+      } catch {
+        notify("error", "No pude procesar la foto. Proba con otra imagen.");
+        return null;
+      }
+    }
 
     const { data, error } = await supabase
       .from("stock_products")
@@ -335,7 +399,7 @@ export function App() {
         category: product.category,
         product_name: product.name,
         description: product.description,
-        image_url: product.imageUrl,
+        image_url: imageUrl,
         quantity: product.quantity,
         reserved: 0,
         price_ars: product.price,
@@ -735,10 +799,12 @@ export function App() {
             sellers={sellerDirectory}
             isSuperAdmin={currentSeller.role === "admin"}
             navigateCreateSeller={() => navigate("/crear-vendedor")}
+            onSaveProfile={saveSellerProfile}
           />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/crear-vendedor" && <CreateSellerPage />}
       </AppLayout>
+      <ToastViewport toasts={toasts} dismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
     </div>
   );
 }
@@ -777,6 +843,10 @@ function mapSupabaseSeller(row: {
   role: string;
   active: boolean;
   created_at: string;
+  shipping_enabled?: boolean | null;
+  shipping_companies?: string[] | null;
+  subscription_until?: string | null;
+  subscription_plan?: string | null;
 }): Seller {
   return {
     ...fallbackSeller,
@@ -788,7 +858,10 @@ function mapSupabaseSeller(row: {
     isMain: true,
     status: row.active ? "active" : "inactive",
     memberSince: row.created_at.slice(0, 10),
-    subscriptionPlan: row.role === "owner" ? "owner" : fallbackSeller.subscriptionPlan,
+    subscriptionUntil: row.subscription_until ?? fallbackSeller.subscriptionUntil,
+    subscriptionPlan: row.role === "owner" ? "owner" : (row.subscription_plan as Seller["subscriptionPlan"] | null) ?? fallbackSeller.subscriptionPlan,
+    shippingEnabled: row.shipping_enabled ?? fallbackSeller.shippingEnabled,
+    shippingCompanies: row.shipping_companies ?? fallbackSeller.shippingCompanies,
   };
 }
 
@@ -939,6 +1012,20 @@ function saleLineToRpcPayload(line: SaleLine) {
     quantity: line.quantity,
     unit_price_ars: line.finalUnitPrice,
   };
+}
+
+function ToastViewport({ toasts, dismiss }: { toasts: ToastMessage[]; dismiss: (id: string) => void }) {
+  if (!toasts.length) return null;
+
+  return (
+    <div className="toast-viewport" role="status" aria-live="polite">
+      {toasts.map((toast) => (
+        <button key={toast.id} className={`toast-message ${toast.kind}`} onClick={() => dismiss(toast.id)}>
+          {toast.text}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function upsertMainSeller(current: Seller[], seller: Seller): Seller[] {

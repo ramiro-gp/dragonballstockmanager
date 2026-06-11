@@ -1,6 +1,13 @@
 export type CardKind = "comun" | "fluor" | "holo";
 export type SaleStatus = "pendiente" | "reservada" | "confirmada" | "cancelada";
 export type Theme = "light" | "dark";
+export type ToastKind = "success" | "error" | "info";
+
+export type ToastMessage = {
+  id: string;
+  kind: ToastKind;
+  text: string;
+};
 
 export type Seller = {
   id: string;
@@ -13,6 +20,13 @@ export type Seller = {
   memberSince: string;
   subscriptionUntil: string;
   subscriptionPlan: "monthly" | "quarterly" | "semester" | "lifetime" | "owner";
+  shippingEnabled: boolean;
+  shippingCompanies: string[];
+};
+
+export type SellerProfilePatch = {
+  name: string;
+  whatsapp: string;
   shippingEnabled: boolean;
   shippingCompanies: string[];
 };
@@ -73,7 +87,9 @@ export type Product = {
   imageUrl: string;
 };
 
-export type PublishProductInput = Omit<Product, "id" | "sellerId">;
+export type PublishProductInput = Omit<Product, "id" | "sellerId"> & {
+  imageFile?: File | null;
+};
 
 export type CartLine = {
   itemType: "card" | "product";
