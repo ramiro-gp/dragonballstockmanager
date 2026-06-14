@@ -134,6 +134,7 @@ export type Sale = {
   status: SaleStatus;
   stockApplied: boolean;
   createdAt: string;
+  statusChangedAt?: string;
   archivedAt?: string;
   manual?: boolean;
   lines: SaleLine[];

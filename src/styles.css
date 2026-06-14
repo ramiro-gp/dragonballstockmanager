@@ -545,6 +545,14 @@ select:focus-visible {
   padding: 0.65rem 0.75rem;
   font-size: 0.82rem;
   font-weight: 900;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.balance-pill:hover {
+  border-color: color-mix(in srgb, var(--orange) 45%, var(--line));
+  background: color-mix(in srgb, var(--orange) 10%, var(--soft));
+  transform: translateY(-1px);
 }
 
 .balance-pill.positive {
@@ -1738,6 +1746,36 @@ textarea.input {
   border-radius: 8px;
   background: var(--panel);
   box-shadow: var(--shadow);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.54);
+  padding: 1rem;
+}
+
+.modal-panel {
+  width: min(620px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+
+.balance-modal .balance-adjust-grid {
+  grid-template-columns: 1fr;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 1rem;
 }
 
 .seller-invite {

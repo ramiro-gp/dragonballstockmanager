@@ -49,6 +49,7 @@ export function App() {
   const [sellerDirectory, setSellerDirectory] = useState<Seller[]>(() => upsertMainSeller(sellers, readStorage(STORAGE_KEYS.currentSeller, fallbackSeller)));
   const [sellerSettings, setSellerSettings] = useState<SellerSettings>(fallbackSellerSettings);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage(STORAGE_KEYS.sidebarCollapsed, false));
   const [stock, setStock] = useState<CardStock[]>(() => readStorage(STORAGE_KEYS.stock, initialStock));
   const [products, setProducts] = useState<Product[]>(() => readStorage(STORAGE_KEYS.products, initialProducts));
@@ -116,7 +117,7 @@ export function App() {
   useEffect(() => {
     setSales((current) =>
       current.map((sale) =>
-        sale.status === "cancelada" && !sale.archivedAt && daysSince(sale.createdAt) >= 30
+        sale.status === "cancelada" && !sale.archivedAt && daysSince(sale.statusChangedAt ?? sale.createdAt) >= 30
           ? { ...sale, archivedAt: new Date().toISOString().slice(0, 10) }
           : sale,
       ),
@@ -318,6 +319,7 @@ export function App() {
         stock_applied,
         archived_at,
         manual,
+        status_changed_at,
         total_ars,
         created_at,
         sale_lines (
@@ -356,6 +358,7 @@ export function App() {
           customer_note,
           status,
           stock_applied,
+          status_changed_at,
           total_ars,
           created_at,
           sale_lines (
@@ -384,7 +387,16 @@ export function App() {
     }
 
     if (saleRows) {
-      const nextSales = saleRows.map((row) => mapSupabaseSale(row as Parameters<typeof mapSupabaseSale>[0]));
+      const today = new Date().toISOString().slice(0, 10);
+      const client = supabase;
+      const nextSales = saleRows.map((row) => {
+        const sale = mapSupabaseSale(row as Parameters<typeof mapSupabaseSale>[0]);
+        if (sale.status === "cancelada" && !sale.archivedAt && daysSince(sale.statusChangedAt ?? sale.createdAt) >= 30) {
+          void client.from("sales").update({ archived_at: today }).eq("id", sale.id);
+          return { ...sale, archivedAt: today };
+        }
+        return sale;
+      });
       setSales((current) => [
         ...current.filter((sale) => sale.sellerId !== sellerId && sale.sellerId !== fallbackSellerId),
         ...nextSales,
@@ -649,6 +661,7 @@ export function App() {
       status: "pendiente",
       stockApplied: false,
       createdAt: new Date().toISOString().slice(0, 10),
+      statusChangedAt: new Date().toISOString().slice(0, 10),
       shippingPending: true,
       lines: cart.map((line) => ({ ...line, finalUnitPrice: line.unitPrice })),
       payments: [],
@@ -720,6 +733,7 @@ export function App() {
       status: "confirmada",
       stockApplied: input.applyStock,
       createdAt: input.date || new Date().toISOString().slice(0, 10),
+      statusChangedAt: input.date || new Date().toISOString().slice(0, 10),
       shippingPending: false,
       manual: true,
       lines: input.lines,
@@ -799,6 +813,7 @@ export function App() {
       .update({
         status: toSupabaseStatus(sale.status),
         stock_applied: sale.stockApplied,
+        status_changed_at: sale.statusChangedAt ?? sale.createdAt,
         total_ars: saleTotal(sale),
         customer_note: sale.note,
       })
@@ -823,6 +838,7 @@ export function App() {
         status: toSupabaseStatus(sale.status),
         stock_applied: sale.stockApplied,
         manual: sale.manual ?? false,
+        status_changed_at: sale.statusChangedAt ?? sale.createdAt,
         total_ars: saleTotal(sale),
         created_at: sale.createdAt,
       })
@@ -853,7 +869,8 @@ export function App() {
       nextProducts = inventory.nextProducts;
     }
 
-    const nextSale = { ...sale, status, stockApplied: nextShouldApply };
+    const statusChangedAt = status === sale.status ? sale.statusChangedAt ?? sale.createdAt : new Date().toISOString().slice(0, 10);
+    const nextSale = { ...sale, status, stockApplied: nextShouldApply, statusChangedAt };
 
     if (supabase) {
       const { error: rpcError } = await supabase.rpc("set_sale_status", {
@@ -862,6 +879,7 @@ export function App() {
       });
 
       if (!rpcError) {
+        await supabase.from("sales").update({ status_changed_at: statusChangedAt }).eq("id", saleId);
         await loadSellerInventoryFromSupabase(currentSeller.id);
         await loadSellerSalesFromSupabase(currentSeller.id);
         return;
@@ -930,6 +948,7 @@ export function App() {
         cartCount={cart.reduce((sum, line) => sum + line.quantity, 0)}
         cartTotalValue={cartTotal(cart)}
         balanceValue={revenue + manualIncome - spent - manualExpense}
+        onBalanceClick={() => setBalanceModalOpen(true)}
         isLoggedIn={isLoggedIn}
         sidebarCollapsed={sidebarCollapsed}
         setSidebarCollapsed={setSidebarCollapsed}
@@ -1027,7 +1046,7 @@ export function App() {
           />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/panel" && (
-          <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} adjustments={sellerBalanceAdjustments} addBalanceAdjustment={addBalanceAdjustment} />
+          <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} adjustments={sellerBalanceAdjustments} />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
           <SettingsPage
@@ -1041,6 +1060,15 @@ export function App() {
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/crear-vendedor" && <CreateSellerPage />}
       </AppLayout>
+      {balanceModalOpen && (
+        <BalanceAdjustmentModal
+          onClose={() => setBalanceModalOpen(false)}
+          onSave={async (input) => {
+            await addBalanceAdjustment(input);
+            setBalanceModalOpen(false);
+          }}
+        />
+      )}
       <ToastViewport toasts={toasts} dismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
     </div>
   );
@@ -1160,6 +1188,7 @@ function mapSupabaseSale(row: {
   stock_applied: boolean;
   archived_at?: string | null;
   manual?: boolean | null;
+  status_changed_at?: string | null;
   created_at: string;
   sale_lines?: Array<{
     id: string;
@@ -1190,6 +1219,7 @@ function mapSupabaseSale(row: {
     status: fromSupabaseStatus(row.status),
     stockApplied: row.stock_applied,
     createdAt: row.created_at.slice(0, 10),
+    statusChangedAt: row.status_changed_at?.slice(0, 10) ?? row.created_at.slice(0, 10),
     archivedAt: row.archived_at ?? undefined,
     manual: row.manual ?? false,
     shippingPending: fromSupabaseStatus(row.status) !== "confirmada",
@@ -1267,6 +1297,68 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastMessage[]; dismiss: (
           {toast.text}
         </button>
       ))}
+    </div>
+  );
+}
+
+function BalanceAdjustmentModal({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (input: Omit<BalanceAdjustment, "id" | "sellerId">) => Promise<void>;
+}) {
+  const [type, setType] = useState<"income" | "expense">("income");
+  const [amount, setAmount] = useState(0);
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!amount) return;
+    setSaving(true);
+    await onSave({ type, amount, note, date });
+    setSaving(false);
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Ajustar balance">
+      <section className="modal-panel balance-modal">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Balance</p>
+            <h3>Ajustar balance</h3>
+          </div>
+          <button className="ghost-icon" onClick={onClose} aria-label="Cerrar">×</button>
+        </div>
+        <div className="mt-4 balance-adjust-grid">
+          <label className="field">
+            <span>Tipo</span>
+            <select value={type} onChange={(event) => setType(event.target.value as "income" | "expense")}>
+              <option value="income">Ingreso</option>
+              <option value="expense">Gasto</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Monto</span>
+            <input type="number" min={0} value={amount} onChange={(event) => setAmount(Math.max(0, Number(event.target.value)))} />
+          </label>
+          <label className="field">
+            <span>Fecha</span>
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          </label>
+          <label className="field balance-adjust-note">
+            <span>Nota</span>
+            <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ej: venta cara a cara, compra de lote..." />
+          </label>
+        </div>
+        <div className="modal-actions">
+          <button className="secondary-button compact" onClick={onClose}>Cancelar</button>
+          <button className="primary-button compact" disabled={!amount || saving} onClick={save}>
+            {saving ? "Guardando..." : "Guardar movimiento"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

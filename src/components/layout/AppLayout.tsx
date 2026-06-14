@@ -25,7 +25,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.27.0";
+const APP_VERSION = "v0.28.0";
 
 export function AppLayout({
   children,
@@ -37,6 +37,7 @@ export function AppLayout({
   cartCount,
   cartTotalValue,
   balanceValue,
+  onBalanceClick,
   isLoggedIn,
   sidebarCollapsed,
   setSidebarCollapsed,
@@ -51,6 +52,7 @@ export function AppLayout({
   cartCount: number;
   cartTotalValue: number;
   balanceValue: number;
+  onBalanceClick: () => void;
   isLoggedIn: boolean;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (value: boolean) => void;
@@ -96,7 +98,11 @@ export function AppLayout({
           )}
         </div>
         <div className="header-actions">
-          {isLoggedIn && <span className={clsx("balance-pill", balanceValue >= 0 ? "positive" : "negative")}>Balance {formatMoney(balanceValue)}</span>}
+          {isLoggedIn && (
+            <button className={clsx("balance-pill", balanceValue >= 0 ? "positive" : "negative")} onClick={onBalanceClick}>
+              Balance {formatMoney(balanceValue)}
+            </button>
+          )}
           {!isLoggedIn && <button className="seller-button primary-cta" onClick={() => navigate("/quiero-vender")}>Quiero ser vendedor</button>}
           <button className="cart-button" onClick={() => navigate("/carrito")} aria-label="Abrir carrito">
             <ShoppingCart size={18} />

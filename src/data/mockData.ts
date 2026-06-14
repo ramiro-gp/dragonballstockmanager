@@ -132,6 +132,7 @@ export const initialSales: Sale[] = [
     status: "reservada",
     stockApplied: true,
     createdAt: "2026-06-02",
+    statusChangedAt: "2026-06-02",
     shippingPending: true,
     lines: [
       { itemType: "card", itemId: "c-1110-verde", sellerId: "seller-ramiro", label: "Carta 1110 · Holo Verde", unitPrice: 5000, finalUnitPrice: 5000, quantity: 1, maxQuantity: 3 },
@@ -147,6 +148,7 @@ export const initialSales: Sale[] = [
     status: "confirmada",
     stockApplied: true,
     createdAt: "2026-06-05",
+    statusChangedAt: "2026-06-05",
     shippingPending: false,
     lines: [
       { itemType: "card", itemId: "c-1134-glitter", sellerId: "seller-ramiro", label: "Carta 1134 · Holo Glitter", unitPrice: 1500, finalUnitPrice: 1300, quantity: 1, maxQuantity: 2 },
