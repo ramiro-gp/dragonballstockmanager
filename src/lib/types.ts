@@ -54,6 +54,15 @@ export type Purchase = {
   topExpansion: string;
 };
 
+export type BalanceAdjustment = {
+  id: string;
+  sellerId: string;
+  type: "income" | "expense";
+  amount: number;
+  note: string;
+  date: string;
+};
+
 export type CardStock = {
   id: string;
   sellerId: string;
@@ -91,6 +100,7 @@ export type Product = {
 
 export type PublishProductInput = Omit<Product, "id" | "sellerId"> & {
   imageFile?: File | null;
+  purchaseCost?: number;
 };
 
 export type CartLine = {
@@ -124,6 +134,8 @@ export type Sale = {
   status: SaleStatus;
   stockApplied: boolean;
   createdAt: string;
+  archivedAt?: string;
+  manual?: boolean;
   lines: SaleLine[];
   payments: Payment[];
   shippingPending: boolean;

@@ -17,6 +17,7 @@ export function StockManagerPage({
   setProducts,
   onPublishCards,
   onPublishProduct,
+  onRegisterExpense,
 }: {
   sellerId: string;
   settings: SellerSettings;
@@ -26,6 +27,7 @@ export function StockManagerPage({
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   onPublishCards?: (rows: PublishCardInput[]) => Promise<CardStock[] | null>;
   onPublishProduct?: (product: PublishProductInput) => Promise<Product | null>;
+  onRegisterExpense?: (amount: number, note: string) => void;
 }) {
   const [publishMode, setPublishMode] = useState<"cards" | "products">("cards");
   const [loadMode, setLoadMode] = useState<"list" | "range">("list");
@@ -34,6 +36,7 @@ export function StockManagerPage({
   const [to, setTo] = useState("12");
   const [except, setExcept] = useState("4, 7");
   const [prices, setPrices] = useState<Record<CardKind, number>>(() => readPublishPrices(sellerId, settings));
+  const [cardsPurchaseCost, setCardsPurchaseCost] = useState(0);
   const [variantDrafts, setVariantDrafts] = useState<Record<string, VariantDraft>>({});
   const [publishedMessage, setPublishedMessage] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
@@ -42,6 +45,7 @@ export function StockManagerPage({
   const [productDescription, setProductDescription] = useState("");
   const [productQuantity, setProductQuantity] = useState(1);
   const [productPrice, setProductPrice] = useState(0);
+  const [productPurchaseCost, setProductPurchaseCost] = useState(0);
   const [productImageUrl, setProductImageUrl] = useState("");
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
 
@@ -143,6 +147,10 @@ export function StockManagerPage({
         ...savedRows,
       ]);
       setPublishedMessage(`${totalToPublish} cartas publicadas.`);
+      if (cardsPurchaseCost > 0) {
+        onRegisterExpense?.(cardsPurchaseCost, `Costo de compra: ${totalToPublish} cartas`);
+        setCardsPurchaseCost(0);
+      }
       return;
     }
 
@@ -181,6 +189,10 @@ export function StockManagerPage({
       return next;
     });
     setPublishedMessage(`${totalToPublish} cartas publicadas.`);
+    if (cardsPurchaseCost > 0) {
+      onRegisterExpense?.(cardsPurchaseCost, `Costo de compra: ${totalToPublish} cartas`);
+      setCardsPurchaseCost(0);
+    }
   }
 
   async function loadProduct() {
@@ -195,6 +207,7 @@ export function StockManagerPage({
       price: Math.max(0, productPrice),
       imageUrl: productImageUrl.trim() || defaultImageUrl,
       imageFile: productImageFile,
+      purchaseCost: Math.max(0, productPurchaseCost),
     };
 
     setIsPublishing(true);
@@ -203,12 +216,23 @@ export function StockManagerPage({
 
     setProducts((current) => [
       ...current,
-      savedProduct ?? { id: crypto.randomUUID(), sellerId, ...productToPublish },
+      savedProduct ?? {
+        id: crypto.randomUUID(),
+        sellerId,
+        name: productToPublish.name,
+        category: productToPublish.category,
+        description: productToPublish.description,
+        quantity: productToPublish.quantity,
+        price: productToPublish.price,
+        imageUrl: productToPublish.imageUrl,
+      },
     ]);
+    if (productPurchaseCost > 0) onRegisterExpense?.(productPurchaseCost, `Costo de compra: ${name}`);
     setProductName("");
     setProductDescription("");
     setProductQuantity(1);
     setProductPrice(0);
+    setProductPurchaseCost(0);
     setProductImageUrl("");
     setProductImageFile(null);
   }
@@ -260,6 +284,7 @@ export function StockManagerPage({
                 <label className="field"><span>Precio común</span><input type="number" min={0} value={prices.comun} onChange={(event) => setPrices((current) => ({ ...current, comun: Math.max(0, Number(event.target.value)) }))} /></label>
                 <label className="field"><span>Precio fluor</span><input type="number" min={0} value={prices.fluor} onChange={(event) => setPrices((current) => ({ ...current, fluor: Math.max(0, Number(event.target.value)) }))} /></label>
                 <label className="field"><span>Precio holo</span><input type="number" min={0} value={prices.holo} onChange={(event) => setPrices((current) => ({ ...current, holo: Math.max(0, Number(event.target.value)) }))} /></label>
+                <label className="field"><span>Costo de compra</span><input type="number" min={0} value={cardsPurchaseCost} onChange={(event) => setCardsPurchaseCost(Math.max(0, Number(event.target.value)))} /></label>
               </div>
             </div>
           </section>
@@ -342,6 +367,7 @@ export function StockManagerPage({
               </label>
               <label className="field"><span>Cantidad</span><input type="number" min={1} value={productQuantity} onChange={(event) => setProductQuantity(Number(event.target.value))} /></label>
               <label className="field"><span>Precio</span><input type="number" min={0} value={productPrice} onChange={(event) => setProductPrice(Number(event.target.value))} /></label>
+              <label className="field"><span>Costo de compra</span><input type="number" min={0} value={productPurchaseCost} onChange={(event) => setProductPurchaseCost(Math.max(0, Number(event.target.value)))} /></label>
               <label className="field product-load-wide"><span>Descripcion</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Ej: expansion completa, incluye caja original, estado general, si faltan o sobran cartas..." maxLength={600} /></label>
               <label className="field"><span>Foto del producto</span><input type="file" accept="image/*" onChange={(event) => setProductImageFile(event.target.files?.[0] ?? null)} /></label>
               <label className="field"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." disabled={Boolean(productImageFile)} /></label>              <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim() || isPublishing}>

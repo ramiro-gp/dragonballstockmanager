@@ -6,7 +6,7 @@ import { initialProducts, initialPurchases, initialSales, initialStock, sellers 
 import { availableQuantity, cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { compressProductImage } from "./lib/images";
 import { supabase } from "./lib/supabase";
-import type { CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
+import type { BalanceAdjustment, CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
 import { CartPage } from "./pages/CartPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -35,6 +35,7 @@ const STORAGE_KEYS = {
   stock: "dbsm.stock",
   products: "dbsm.products",
   sales: "dbsm.sales",
+  balanceAdjustments: "dbsm.balanceAdjustments",
   cart: "dbsm.cart",
 } as const;
 
@@ -53,6 +54,7 @@ export function App() {
   const [products, setProducts] = useState<Product[]>(() => readStorage(STORAGE_KEYS.products, initialProducts));
   const [sales, setSales] = useState<Sale[]>(() => readStorage(STORAGE_KEYS.sales, initialSales));
   const [purchases] = useState<Purchase[]>(initialPurchases);
+  const [balanceAdjustments, setBalanceAdjustments] = useState<BalanceAdjustment[]>(() => readStorage(STORAGE_KEYS.balanceAdjustments, []));
   const [cart, setCart] = useState<CartLine[]>(() => readStorage(STORAGE_KEYS.cart, []));
 
   const publicSeller = getPublicSeller(route, sellerDirectory) ?? currentSeller;
@@ -62,9 +64,12 @@ export function App() {
   const publicSellerProducts = products.filter((item) => item.sellerId === publicSeller.id && item.quantity > 0);
   const sellerSales = sales.filter((sale) => sale.sellerId === currentSeller.id);
   const sellerPurchases = purchases.filter((purchase) => purchase.sellerId === currentSeller.id);
+  const sellerBalanceAdjustments = balanceAdjustments.filter((adjustment) => adjustment.sellerId === currentSeller.id);
   const cartSeller = sellerDirectory.find((seller) => seller.id === cart[0]?.sellerId) ?? publicSeller;
   const revenue = sellerSales.filter((sale) => sale.status === "confirmada").reduce((sum, sale) => sum + saleTotal(sale), 0);
   const spent = sellerPurchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0);
+  const manualIncome = sellerBalanceAdjustments.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
+  const manualExpense = sellerBalanceAdjustments.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
   const visibleRoute = !isLoggedIn && privateRoutes.includes(route) ? "/login" : route;
   const sellerInactive = isLoggedIn && currentSeller.status === "inactive";
 
@@ -106,7 +111,17 @@ export function App() {
   useEffect(() => writeStorage(STORAGE_KEYS.stock, stock), [stock]);
   useEffect(() => writeStorage(STORAGE_KEYS.products, products), [products]);
   useEffect(() => writeStorage(STORAGE_KEYS.sales, sales), [sales]);
+  useEffect(() => writeStorage(STORAGE_KEYS.balanceAdjustments, balanceAdjustments), [balanceAdjustments]);
   useEffect(() => writeStorage(STORAGE_KEYS.cart, cart), [cart]);
+  useEffect(() => {
+    setSales((current) =>
+      current.map((sale) =>
+        sale.status === "cancelada" && !sale.archivedAt && daysSince(sale.createdAt) >= 30
+          ? { ...sale, archivedAt: new Date().toISOString().slice(0, 10) }
+          : sale,
+      ),
+    );
+  }, []);
 
   function navigate(nextRoute: Route) {
     window.history.pushState({}, "", nextRoute);
@@ -119,6 +134,31 @@ export function App() {
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 3600);
+  }
+
+  async function addBalanceAdjustment(input: Omit<BalanceAdjustment, "id" | "sellerId">) {
+    const amount = Math.max(0, input.amount);
+    if (!amount) return;
+    const adjustment: BalanceAdjustment = {
+      id: crypto.randomUUID(),
+      sellerId: currentSeller.id,
+      type: input.type,
+      amount,
+      note: input.note.trim() || (input.type === "expense" ? "Gasto manual" : "Ingreso manual"),
+      date: input.date || new Date().toISOString().slice(0, 10),
+    };
+    setBalanceAdjustments((current) => [adjustment, ...current]);
+    if (supabase) {
+      await supabase.from("balance_adjustments").insert({
+        id: adjustment.id,
+        seller_id: adjustment.sellerId,
+        type: adjustment.type,
+        amount_ars: adjustment.amount,
+        note: adjustment.note,
+        movement_date: adjustment.date,
+      });
+    }
+    notify("success", input.type === "expense" ? "Gasto registrado." : "Ingreso registrado.");
   }
 
   async function loadSellerFromSupabase(userId: string) {
@@ -158,6 +198,7 @@ export function App() {
 
     await loadSellerInventoryFromSupabase(userId);
     await loadSellerSalesFromSupabase(userId);
+    await loadBalanceAdjustmentsFromSupabase(userId);
   }
 
   async function loadPublicSellersFromSupabase() {
@@ -265,7 +306,7 @@ export function App() {
   async function loadSellerSalesFromSupabase(sellerId: string) {
     if (!supabase) return;
 
-    const { data: saleRows } = await supabase
+    const saleResponse = await supabase
       .from("sales")
       .select(`
         id,
@@ -275,6 +316,8 @@ export function App() {
         customer_note,
         status,
         stock_applied,
+        archived_at,
+        manual,
         total_ars,
         created_at,
         sale_lines (
@@ -299,14 +342,80 @@ export function App() {
       `)
       .eq("seller_id", sellerId)
       .order("created_at", { ascending: false });
+    let saleRows: unknown[] | null = saleResponse.data;
+    const salesError = saleResponse.error;
+
+    if (salesError) {
+      const fallback = await supabase
+        .from("sales")
+        .select(`
+          id,
+          seller_id,
+          customer_name,
+          customer_whatsapp,
+          customer_note,
+          status,
+          stock_applied,
+          total_ars,
+          created_at,
+          sale_lines (
+            id,
+            item_type,
+            stock_card_id,
+            stock_product_id,
+            card_number,
+            expansion,
+            variant_type,
+            color_variant,
+            product_name,
+            quantity,
+            unit_price_ars
+          ),
+          payments (
+            id,
+            amount_ars,
+            note,
+            paid_at
+          )
+        `)
+        .eq("seller_id", sellerId)
+        .order("created_at", { ascending: false });
+      saleRows = fallback.data as unknown[] | null;
+    }
 
     if (saleRows) {
-      const nextSales = saleRows.map(mapSupabaseSale);
+      const nextSales = saleRows.map((row) => mapSupabaseSale(row as Parameters<typeof mapSupabaseSale>[0]));
       setSales((current) => [
         ...current.filter((sale) => sale.sellerId !== sellerId && sale.sellerId !== fallbackSellerId),
         ...nextSales,
       ]);
     }
+  }
+
+  async function loadBalanceAdjustmentsFromSupabase(sellerId: string) {
+    if (!supabase) return;
+
+    const { data } = await supabase
+      .from("balance_adjustments")
+      .select("id, seller_id, type, amount_ars, note, movement_date")
+      .eq("seller_id", sellerId)
+      .order("movement_date", { ascending: false });
+
+    if (!data) return;
+
+    const mapped: BalanceAdjustment[] = data.map((row) => ({
+      id: row.id,
+      sellerId: row.seller_id,
+      type: row.type === "expense" ? "expense" : "income",
+      amount: row.amount_ars ?? 0,
+      note: row.note ?? "",
+      date: row.movement_date,
+    }));
+
+    setBalanceAdjustments((current) => [
+      ...current.filter((item) => item.sellerId !== sellerId && item.sellerId !== fallbackSellerId),
+      ...mapped,
+    ]);
   }
 
   async function publishCardsToSupabase(rows: PublishCardInput[]) {
@@ -592,6 +701,76 @@ export function App() {
     return true;
   }
 
+  async function createManualSale(input: {
+    customerName: string;
+    customerWhatsapp?: string;
+    note?: string;
+    date: string;
+    lines: SaleLine[];
+    applyStock: boolean;
+  }) {
+    if (!input.lines.length) return;
+    const sale: Sale = {
+      id: crypto.randomUUID(),
+      orderNumber: `MAN-${Date.now().toString().slice(-6)}`,
+      sellerId: currentSeller.id,
+      customerName: input.customerName.trim() || "Venta manual",
+      customerWhatsapp: input.customerWhatsapp,
+      note: input.note,
+      status: "confirmada",
+      stockApplied: input.applyStock,
+      createdAt: input.date || new Date().toISOString().slice(0, 10),
+      shippingPending: false,
+      manual: true,
+      lines: input.lines,
+      payments: [{ id: crypto.randomUUID(), amount: input.lines.reduce((sum, line) => sum + line.finalUnitPrice * line.quantity, 0), note: "Venta manual", date: input.date }],
+    };
+
+    let nextStock = stock;
+    let nextProducts = products;
+    if (sale.stockApplied) {
+      const inventory = applySaleInventorySnapshot(nextStock, nextProducts, sale, 1);
+      nextStock = inventory.nextStock;
+      nextProducts = inventory.nextProducts;
+      setStock(nextStock);
+      setProducts(nextProducts);
+    }
+
+    setSales((current) => [sale, ...current]);
+    if (supabase) {
+      const saved = await insertSaleToSupabase(sale);
+      if (saved) await loadSellerSalesFromSupabase(currentSeller.id);
+    }
+    if (supabase && sale.stockApplied) {
+      await saveManagedCardsToSupabase(nextStock.filter((item) => item.sellerId === currentSeller.id));
+      await saveManagedProductsToSupabase(nextProducts.filter((item) => item.sellerId === currentSeller.id));
+    }
+    notify("success", "Venta manual cargada.");
+  }
+
+  async function archiveSale(saleId: string) {
+    const ok = window.confirm("Vas a archivar este pedido. No se borra, solo queda oculto del historial principal.");
+    if (!ok) return;
+    const archivedAt = new Date().toISOString().slice(0, 10);
+    setSales((current) => current.map((sale) => sale.id === saleId ? { ...sale, archivedAt } : sale));
+    if (supabase) await supabase.from("sales").update({ archived_at: archivedAt }).eq("id", saleId);
+    notify("success", "Pedido archivado.");
+  }
+
+  async function deleteSale(saleId: string) {
+    const sale = sales.find((item) => item.id === saleId);
+    if (!sale) return;
+    if (sale.status !== "cancelada" && !sale.archivedAt) {
+      notify("error", "Solo podes borrar pedidos cancelados o archivados.");
+      return;
+    }
+    const ok = window.confirm("Esto borra el pedido definitivamente. No se puede deshacer.");
+    if (!ok) return;
+    setSales((current) => current.filter((item) => item.id !== saleId));
+    if (supabase) await supabase.from("sales").delete().eq("id", saleId);
+    notify("success", "Pedido borrado.");
+  }
+
   function applySaleInventorySnapshot(stockRows: CardStock[], productRows: Product[], sale: Sale, direction: 1 | -1) {
     const nextStock = stockRows.map((item) => {
       const saleQuantity = sale.lines
@@ -628,6 +807,32 @@ export function App() {
     await supabase.from("sale_lines").delete().eq("sale_id", sale.id);
     const rows = sale.lines.map((line) => saleLineToSupabaseInsert(sale.id, sale.sellerId, line));
     if (rows.length) await supabase.from("sale_lines").insert(rows);
+  }
+
+  async function insertSaleToSupabase(sale: Sale) {
+    if (!supabase) return false;
+
+    const { data, error } = await supabase
+      .from("sales")
+      .insert({
+        id: sale.id,
+        seller_id: sale.sellerId,
+        customer_name: sale.customerName,
+        customer_whatsapp: sale.customerWhatsapp,
+        customer_note: sale.note,
+        status: toSupabaseStatus(sale.status),
+        stock_applied: sale.stockApplied,
+        manual: sale.manual ?? false,
+        total_ars: saleTotal(sale),
+        created_at: sale.createdAt,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) return false;
+    const rows = sale.lines.map((line) => saleLineToSupabaseInsert(sale.id, sale.sellerId, line));
+    const { error: linesError } = rows.length ? await supabase.from("sale_lines").insert(rows) : { error: null };
+    return !linesError;
   }
 
   async function changeSaleStatus(saleId: string, status: SaleStatus) {
@@ -724,7 +929,7 @@ export function App() {
         setTheme={setTheme}
         cartCount={cart.reduce((sum, line) => sum + line.quantity, 0)}
         cartTotalValue={cartTotal(cart)}
-        balanceValue={revenue - spent}
+        balanceValue={revenue + manualIncome - spent - manualExpense}
         isLoggedIn={isLoggedIn}
         sidebarCollapsed={sidebarCollapsed}
         setSidebarCollapsed={setSidebarCollapsed}
@@ -794,6 +999,7 @@ export function App() {
             setProducts={setProducts}
             onPublishCards={publishCardsToSupabase}
             onPublishProduct={publishProductToSupabase}
+            onRegisterExpense={(amount, note) => addBalanceAdjustment({ type: "expense", amount, note, date: new Date().toISOString().slice(0, 10) })}
           />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/gestion-stock" && (
@@ -808,9 +1014,21 @@ export function App() {
           />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
-          <SalesPage sales={sellerSales} stock={sellerStock} products={sellerProducts} changeSaleStatus={changeSaleStatus} updateSaleLine={updateSaleLine} saveSaleLines={saveSaleLines} />
+          <SalesPage
+            sales={sellerSales}
+            stock={sellerStock}
+            products={sellerProducts}
+            changeSaleStatus={changeSaleStatus}
+            updateSaleLine={updateSaleLine}
+            saveSaleLines={saveSaleLines}
+            createManualSale={createManualSale}
+            archiveSale={archiveSale}
+            deleteSale={deleteSale}
+          />
         )}
-        {!sellerInactive && isLoggedIn && visibleRoute === "/panel" && <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} />}
+        {!sellerInactive && isLoggedIn && visibleRoute === "/panel" && (
+          <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} adjustments={sellerBalanceAdjustments} addBalanceAdjustment={addBalanceAdjustment} />
+        )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
           <SettingsPage
             seller={currentSeller}
@@ -940,6 +1158,8 @@ function mapSupabaseSale(row: {
   customer_note: string | null;
   status: string;
   stock_applied: boolean;
+  archived_at?: string | null;
+  manual?: boolean | null;
   created_at: string;
   sale_lines?: Array<{
     id: string;
@@ -970,6 +1190,8 @@ function mapSupabaseSale(row: {
     status: fromSupabaseStatus(row.status),
     stockApplied: row.stock_applied,
     createdAt: row.created_at.slice(0, 10),
+    archivedAt: row.archived_at ?? undefined,
+    manual: row.manual ?? false,
     shippingPending: fromSupabaseStatus(row.status) !== "confirmada",
     lines: (row.sale_lines ?? []).map((line) => ({
       itemType: line.item_type === "product" ? "product" : "card",
@@ -1072,4 +1294,10 @@ function writeStorage(key: string, value: unknown) {
   } catch {
     // Local storage can be unavailable in private contexts; the mock app still works in memory.
   }
+}
+
+function daysSince(date: string) {
+  const timestamp = new Date(date).getTime();
+  if (!Number.isFinite(timestamp)) return 0;
+  return Math.floor((Date.now() - timestamp) / 86_400_000);
 }
