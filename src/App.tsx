@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import clsx from "clsx";
 import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
@@ -7,17 +7,18 @@ import { availableQuantity, cartTotal, formatMoney, saleTotal, shouldApplyStock 
 import { compressProductImage } from "./lib/images";
 import { supabase } from "./lib/supabase";
 import type { BalanceAdjustment, CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
-import { CartPage } from "./pages/CartPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { LoginPage } from "./pages/LoginPage";
-import { CreateSellerPage } from "./pages/CreateSellerPage";
-import { PublicStockPage } from "./pages/PublicStockPage";
-import { SalesPage } from "./pages/SalesPage";
-import { SellPage } from "./pages/SellPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { StockManagementPage } from "./pages/StockManagementPage";
-import { StockManagerPage } from "./pages/StockManagerPage";
-import { SubscriptionExpiredPage } from "./pages/SubscriptionExpiredPage";
+
+const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
+const CreateSellerPage = lazy(() => import("./pages/CreateSellerPage").then((module) => ({ default: module.CreateSellerPage })));
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
+const LoginPage = lazy(() => import("./pages/LoginPage").then((module) => ({ default: module.LoginPage })));
+const PublicStockPage = lazy(() => import("./pages/PublicStockPage").then((module) => ({ default: module.PublicStockPage })));
+const SalesPage = lazy(() => import("./pages/SalesPage").then((module) => ({ default: module.SalesPage })));
+const SellPage = lazy(() => import("./pages/SellPage").then((module) => ({ default: module.SellPage })));
+const SettingsPage = lazy(() => import("./pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
+const StockManagementPage = lazy(() => import("./pages/StockManagementPage").then((module) => ({ default: module.StockManagementPage })));
+const StockManagerPage = lazy(() => import("./pages/StockManagerPage").then((module) => ({ default: module.StockManagerPage })));
+const SubscriptionExpiredPage = lazy(() => import("./pages/SubscriptionExpiredPage").then((module) => ({ default: module.SubscriptionExpiredPage })));
 
 const fallbackSeller = sellers[0];
 const fallbackSellerId = fallbackSeller.id;
@@ -1012,107 +1013,109 @@ export function App() {
           navigate("/");
         }}
       >
-        {(visibleRoute === "/" || isSellerStockRoute(visibleRoute)) && (
-          <PublicStockPage
-            seller={publicSeller}
-            stock={publicSellerStock}
-            products={publicSellerProducts}
-            cart={cart}
-            addToCart={addToCart}
-            addManyToCart={addManyToCart}
-            canBuy={!isLoggedIn || publicSeller.id !== currentSeller.id}
-            navigate={navigate}
-          />
-        )}
-        {visibleRoute === "/quiero-vender" && <SellPage />}
-        {visibleRoute === "/carrito" && (
-          <CartPage
-            cart={cart}
-            setCart={setCart}
-            sellerName={cartSeller.name}
-            sellerWhatsapp={cartSeller.whatsapp}
-            createPendingSale={createPendingSale}
-          />
-        )}
-        {visibleRoute === "/login" && (
-          <LoginPage
-            navigate={navigate}
-            authLoading={authLoading}
-            authError={authError}
-            login={async (email, password) => {
-              setAuthError("");
-              setAuthLoading(true);
+        <Suspense fallback={<PageLoader />}>
+          {(visibleRoute === "/" || isSellerStockRoute(visibleRoute)) && (
+            <PublicStockPage
+              seller={publicSeller}
+              stock={publicSellerStock}
+              products={publicSellerProducts}
+              cart={cart}
+              addToCart={addToCart}
+              addManyToCart={addManyToCart}
+              canBuy={!isLoggedIn || publicSeller.id !== currentSeller.id}
+              navigate={navigate}
+            />
+          )}
+          {visibleRoute === "/quiero-vender" && <SellPage />}
+          {visibleRoute === "/carrito" && (
+            <CartPage
+              cart={cart}
+              setCart={setCart}
+              sellerName={cartSeller.name}
+              sellerWhatsapp={cartSeller.whatsapp}
+              createPendingSale={createPendingSale}
+            />
+          )}
+          {visibleRoute === "/login" && (
+            <LoginPage
+              navigate={navigate}
+              authLoading={authLoading}
+              authError={authError}
+              login={async (email, password) => {
+                setAuthError("");
+                setAuthLoading(true);
 
-              if (!supabase) {
+                if (!supabase) {
+                  setAuthLoading(false);
+                  setAuthError("Falta configurar Supabase en .env.local.");
+                  return;
+                }
+
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
                 setAuthLoading(false);
-                setAuthError("Falta configurar Supabase en .env.local.");
-                return;
-              }
+                if (error) {
+                  setAuthError(error.message);
+                  return;
+                }
 
-              const { error } = await supabase.auth.signInWithPassword({ email, password });
-              setAuthLoading(false);
-              if (error) {
-                setAuthError(error.message);
-                return;
-              }
-
-              setIsLoggedIn(true);
-              navigate("/ventas");
-            }}
-          />
-        )}
-        {sellerInactive && visibleRoute !== "/login" && <SubscriptionExpiredPage sellerWhatsapp={currentSeller.whatsapp} />}
-        {!sellerInactive && isLoggedIn && visibleRoute === "/carga" && (
-          <StockManagerPage
-            sellerId={currentSeller.id}
-            settings={sellerSettings}
-            stock={sellerStock}
-            setStock={setStock}
-            products={sellerProducts}
-            setProducts={setProducts}
-            onPublishCards={publishCardsToSupabase}
-            onPublishProduct={publishProductToSupabase}
-            onRegisterExpense={(amount, note) => addBalanceAdjustment({ type: "expense", amount, note, date: new Date().toISOString().slice(0, 10) })}
-          />
-        )}
-        {!sellerInactive && isLoggedIn && visibleRoute === "/gestion-stock" && (
-          <StockManagementPage
-            sellerId={currentSeller.id}
-            stock={sellerStock}
-            setStock={setStock}
-            products={sellerProducts}
-            setProducts={setProducts}
-            onSaveCards={supabase ? saveManagedCardsToSupabase : undefined}
-            onSaveProducts={supabase ? saveManagedProductsToSupabase : undefined}
-          />
-        )}
-        {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
-          <SalesPage
-            sales={sellerSales}
-            stock={sellerStock}
-            products={sellerProducts}
-            changeSaleStatus={changeSaleStatus}
-            updateSaleLine={updateSaleLine}
-            saveSaleLines={saveSaleLines}
-            createManualSale={createManualSale}
-            archiveSale={archiveSale}
-            deleteSale={deleteSale}
-          />
-        )}
-        {!sellerInactive && isLoggedIn && visibleRoute === "/panel" && (
-          <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} adjustments={sellerBalanceAdjustments} />
-        )}
-        {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
-          <SettingsPage
-            seller={currentSeller}
-            sellers={sellerDirectory}
-            isSuperAdmin={currentSeller.role === "admin"}
-            navigateCreateSeller={() => navigate("/crear-vendedor")}
-            onSaveProfile={saveSellerProfile}
-            onChangePassword={changePassword}
-          />
-        )}
-        {!sellerInactive && isLoggedIn && visibleRoute === "/crear-vendedor" && <CreateSellerPage />}
+                setIsLoggedIn(true);
+                navigate("/ventas");
+              }}
+            />
+          )}
+          {sellerInactive && visibleRoute !== "/login" && <SubscriptionExpiredPage sellerWhatsapp={currentSeller.whatsapp} />}
+          {!sellerInactive && isLoggedIn && visibleRoute === "/carga" && (
+            <StockManagerPage
+              sellerId={currentSeller.id}
+              settings={sellerSettings}
+              stock={sellerStock}
+              setStock={setStock}
+              products={sellerProducts}
+              setProducts={setProducts}
+              onPublishCards={publishCardsToSupabase}
+              onPublishProduct={publishProductToSupabase}
+              onRegisterExpense={(amount, note) => addBalanceAdjustment({ type: "expense", amount, note, date: new Date().toISOString().slice(0, 10) })}
+            />
+          )}
+          {!sellerInactive && isLoggedIn && visibleRoute === "/gestion-stock" && (
+            <StockManagementPage
+              sellerId={currentSeller.id}
+              stock={sellerStock}
+              setStock={setStock}
+              products={sellerProducts}
+              setProducts={setProducts}
+              onSaveCards={supabase ? saveManagedCardsToSupabase : undefined}
+              onSaveProducts={supabase ? saveManagedProductsToSupabase : undefined}
+            />
+          )}
+          {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
+            <SalesPage
+              sales={sellerSales}
+              stock={sellerStock}
+              products={sellerProducts}
+              changeSaleStatus={changeSaleStatus}
+              updateSaleLine={updateSaleLine}
+              saveSaleLines={saveSaleLines}
+              createManualSale={createManualSale}
+              archiveSale={archiveSale}
+              deleteSale={deleteSale}
+            />
+          )}
+          {!sellerInactive && isLoggedIn && visibleRoute === "/panel" && (
+            <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} adjustments={sellerBalanceAdjustments} />
+          )}
+          {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
+            <SettingsPage
+              seller={currentSeller}
+              sellers={sellerDirectory}
+              isSuperAdmin={currentSeller.role === "admin"}
+              navigateCreateSeller={() => navigate("/crear-vendedor")}
+              onSaveProfile={saveSellerProfile}
+              onChangePassword={changePassword}
+            />
+          )}
+          {!sellerInactive && isLoggedIn && visibleRoute === "/crear-vendedor" && <CreateSellerPage />}
+        </Suspense>
       </AppLayout>
       {balanceModalOpen && (
         <BalanceAdjustmentModal
@@ -1355,6 +1358,14 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastMessage[]; dismiss: (
         </button>
       ))}
     </div>
+  );
+}
+
+function PageLoader() {
+  return (
+    <section className="tool-surface">
+      <p className="text-sm text-[var(--muted)]">Cargando...</p>
+    </section>
   );
 }
 

@@ -1,6 +1,9 @@
 -- Security hardening for checkout and stock updates.
 -- Run in Supabase > SQL Editor > New query > Run.
 --
+-- Important: paste and run the whole file from the first line.
+-- If the editor has only a fragment selected, Supabase runs only that fragment.
+--
 -- What this does:
 -- 1) Removes direct public inserts into sales and sale_lines.
 -- 2) Forces public checkout to go through create_pending_sale.
