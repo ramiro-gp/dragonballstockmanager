@@ -24,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.32.0";
+const APP_VERSION = "v0.33.0";
 
 export function AppLayout({
   children,
@@ -38,6 +38,7 @@ export function AppLayout({
   balanceValue,
   onBalanceClick,
   isLoggedIn,
+  isSuperAdmin,
   sidebarCollapsed,
   setSidebarCollapsed,
   logout,
@@ -53,6 +54,7 @@ export function AppLayout({
   balanceValue: number;
   onBalanceClick: () => void;
   isLoggedIn: boolean;
+  isSuperAdmin: boolean;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (value: boolean) => void;
   logout: () => void;
@@ -67,6 +69,7 @@ export function AppLayout({
     { route: "/ajustes", label: "Ajustes", icon: Settings },
     { route: "/crear-vendedor", label: "Crear vendedor", icon: UserPlus },
   ] as const;
+  const sellerNav = nav.filter((item) => item.route !== "/crear-vendedor" || isSuperAdmin);
   function go(routeToOpen: Route) {
     navigate(routeToOpen);
     setMobileMenuOpen(false);
@@ -119,7 +122,7 @@ export function AppLayout({
       {isLoggedIn && (
         <aside className={clsx("app-sidebar", sidebarCollapsed && "collapsed")}>
           <nav className="space-y-2">
-            {nav.map((item) => (
+            {sellerNav.map((item) => (
               <button
                 key={item.route}
                 onClick={() => navigate(item.route)}
@@ -146,7 +149,7 @@ export function AppLayout({
             <span>{isLoggedIn ? "Menú vendedor" : "Menú"}</span>
           </div>
           <div className="mobile-menu-list">
-            {(isLoggedIn ? nav : [
+            {(isLoggedIn ? sellerNav : [
               { route: "/", label: "Stock", icon: Home },
               { route: "/login", label: "Login", icon: LogIn },
               { route: "/quiero-vender", label: "Quiero ser vendedor", icon: UserPlus, primary: true },

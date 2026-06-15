@@ -7,6 +7,7 @@ import { availableQuantity, cartTotal, formatMoney, saleTotal, shouldApplyStock 
 import { compressProductImage } from "./lib/images";
 import { supabase } from "./lib/supabase";
 import type { BalanceAdjustment, CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
+import type { CreateSellerInput } from "./pages/CreateSellerPage";
 
 const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
 const CreateSellerPage = lazy(() => import("./pages/CreateSellerPage").then((module) => ({ default: module.CreateSellerPage })));
@@ -261,6 +262,33 @@ export function App() {
 
     notify("success", "Vendedor actualizado.");
     await loadAdminSellersFromSupabase();
+    return true;
+  }
+
+  async function createAdminSellerProfile(input: CreateSellerInput) {
+    if (!supabase) {
+      notify("error", "Falta configurar Supabase para crear vendedores.");
+      return false;
+    }
+
+    const { error } = await supabase.rpc("admin_create_seller_profile", {
+      p_user_id: input.userId,
+      p_slug: input.slug,
+      p_display_name: input.displayName,
+      p_whatsapp: input.whatsapp,
+      p_location: input.location,
+      p_months: Math.min(12, Math.max(1, input.months)),
+      p_lifetime: input.lifetime,
+    });
+
+    if (error) {
+      notify("error", "No pude crear el vendedor. Revisa el UID, el slug y el SQL admin_tools_v1.");
+      return false;
+    }
+
+    notify("success", "Perfil vendedor creado.");
+    await loadAdminSellersFromSupabase();
+    navigate("/ajustes");
     return true;
   }
 
@@ -1047,6 +1075,7 @@ export function App() {
         balanceValue={revenue + manualIncome - spent - manualExpense}
         onBalanceClick={() => setBalanceModalOpen(true)}
         isLoggedIn={isLoggedIn}
+        isSuperAdmin={currentSeller.role === "admin"}
         sidebarCollapsed={sidebarCollapsed}
         setSidebarCollapsed={setSidebarCollapsed}
         logout={async () => {
@@ -1157,7 +1186,9 @@ export function App() {
             onChangePassword={changePassword}
           />
           )}
-          {!sellerInactive && isLoggedIn && visibleRoute === "/crear-vendedor" && <CreateSellerPage />}
+          {!sellerInactive && isLoggedIn && currentSeller.role === "admin" && visibleRoute === "/crear-vendedor" && (
+            <CreateSellerPage onCreateSeller={createAdminSellerProfile} />
+          )}
         </Suspense>
       </AppLayout>
       {balanceModalOpen && (
