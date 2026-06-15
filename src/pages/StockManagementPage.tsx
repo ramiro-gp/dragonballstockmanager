@@ -110,20 +110,32 @@ export function StockManagementPage({
   }
 
   async function saveCardChanges() {
-    const savedRows = onSaveCards ? await onSaveCards(draftStock.map((item) => ({ ...item, sellerId }))) : null;
+    const fallbackRows = draftStock.map((item) => ({ ...item, sellerId }));
+    const savedRows = onSaveCards ? await onSaveCards(fallbackRows) : fallbackRows;
+    if (!savedRows) {
+      setSavedMessage("No pude guardar las cartas. Revisá la conexión y probá de nuevo.");
+      return;
+    }
+
     setStock((current) => [
       ...current.filter((item) => item.sellerId !== sellerId),
-      ...(savedRows ?? draftStock.map((item) => ({ ...item, sellerId }))),
+      ...savedRows,
     ]);
     setSelectedCardIds([]);
     setSavedMessage("Cartas guardadas.");
   }
 
   async function saveProductChanges() {
-    const savedRows = onSaveProducts ? await onSaveProducts(draftProducts.map((item) => ({ ...item, sellerId }))) : null;
+    const fallbackRows = draftProducts.map((item) => ({ ...item, sellerId }));
+    const savedRows = onSaveProducts ? await onSaveProducts(fallbackRows) : fallbackRows;
+    if (!savedRows) {
+      setSavedMessage("No pude guardar los productos. Revisá la conexión y probá de nuevo.");
+      return;
+    }
+
     setProducts((current) => [
       ...current.filter((item) => item.sellerId !== sellerId),
-      ...(savedRows ?? draftProducts.map((item) => ({ ...item, sellerId }))),
+      ...savedRows,
     ]);
     setSavedMessage("Productos guardados.");
   }

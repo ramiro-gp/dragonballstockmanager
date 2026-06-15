@@ -540,7 +540,7 @@ export function App() {
         description: product.description,
         image_url: imageUrl,
         quantity: product.quantity,
-        reserved: 0,
+        reserved: product.reserved ?? 0,
         price_ars: product.price,
         active: true,
       })
@@ -554,10 +554,29 @@ export function App() {
   async function saveManagedCardsToSupabase(rows: CardStock[]) {
     if (!supabase) return null;
 
-    await supabase.from("stock_cards").delete().eq("seller_id", currentSeller.id);
+    const { data: existingRows, error: existingError } = await supabase
+      .from("stock_cards")
+      .select("id")
+      .eq("seller_id", currentSeller.id);
+    if (existingError) {
+      notify("error", "No pude leer el stock actual de cartas.");
+      return null;
+    }
+
+    const nextIds = new Set(rows.map((row) => row.id).filter(Boolean));
+    const idsToDelete = (existingRows ?? []).map((row) => row.id).filter((id) => !nextIds.has(id));
+
+    if (idsToDelete.length) {
+      const { error } = await supabase.from("stock_cards").delete().eq("seller_id", currentSeller.id).in("id", idsToDelete);
+      if (error) {
+        notify("error", "No pude borrar las cartas seleccionadas.");
+        return null;
+      }
+    }
 
     const rowsToInsert = rows
       .map((row) => ({
+        id: row.id,
         seller_id: currentSeller.id,
         collection: "cromeros",
         card_number: Number.parseInt(row.number, 10),
@@ -571,14 +590,22 @@ export function App() {
       .filter((row) => Number.isFinite(row.card_number));
 
     if (rowsToInsert.length) {
-      await supabase.from("stock_cards").insert(rowsToInsert);
+      const { error } = await supabase.from("stock_cards").upsert(rowsToInsert, { onConflict: "id" });
+      if (error) {
+        notify("error", "No pude guardar los cambios de cartas.");
+        return null;
+      }
     }
 
-    const { data: cardRows } = await supabase
+    const { data: cardRows, error: refreshError } = await supabase
       .from("stock_cards")
       .select("id, seller_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
       .eq("seller_id", currentSeller.id)
       .order("card_number", { ascending: true });
+    if (refreshError) {
+      notify("error", "No pude actualizar la vista de cartas.");
+      return null;
+    }
 
     return cardRows?.map(mapSupabaseCard) ?? [];
   }
@@ -586,29 +613,56 @@ export function App() {
   async function saveManagedProductsToSupabase(rows: Product[]) {
     if (!supabase) return null;
 
-    await supabase.from("stock_products").delete().eq("seller_id", currentSeller.id);
+    const { data: existingRows, error: existingError } = await supabase
+      .from("stock_products")
+      .select("id")
+      .eq("seller_id", currentSeller.id);
+    if (existingError) {
+      notify("error", "No pude leer el stock actual de productos.");
+      return null;
+    }
+
+    const nextIds = new Set(rows.map((row) => row.id).filter(Boolean));
+    const idsToDelete = (existingRows ?? []).map((row) => row.id).filter((id) => !nextIds.has(id));
+
+    if (idsToDelete.length) {
+      const { error } = await supabase.from("stock_products").delete().eq("seller_id", currentSeller.id).in("id", idsToDelete);
+      if (error) {
+        notify("error", "No pude borrar los productos seleccionados.");
+        return null;
+      }
+    }
 
     const rowsToInsert = rows.map((row) => ({
+      id: row.id,
       seller_id: currentSeller.id,
       category: row.category,
       product_name: row.name,
       description: row.description,
       image_url: row.imageUrl,
       quantity: row.quantity,
-      reserved: 0,
+      reserved: row.reserved,
       price_ars: row.price,
       active: true,
     }));
 
     if (rowsToInsert.length) {
-      await supabase.from("stock_products").insert(rowsToInsert);
+      const { error } = await supabase.from("stock_products").upsert(rowsToInsert, { onConflict: "id" });
+      if (error) {
+        notify("error", "No pude guardar los cambios de productos.");
+        return null;
+      }
     }
 
-    const { data: productRows } = await supabase
+    const { data: productRows, error: refreshError } = await supabase
       .from("stock_products")
       .select("id, seller_id, category, product_name, description, image_url, quantity, reserved, price_ars, active")
       .eq("seller_id", currentSeller.id)
       .order("product_name", { ascending: true });
+    if (refreshError) {
+      notify("error", "No pude actualizar la vista de productos.");
+      return null;
+    }
 
     return productRows?.map(mapSupabaseProduct) ?? [];
   }
@@ -1028,8 +1082,8 @@ export function App() {
             setStock={setStock}
             products={sellerProducts}
             setProducts={setProducts}
-            onSaveCards={saveManagedCardsToSupabase}
-            onSaveProducts={saveManagedProductsToSupabase}
+            onSaveCards={supabase ? saveManagedCardsToSupabase : undefined}
+            onSaveProducts={supabase ? saveManagedProductsToSupabase : undefined}
           />
         )}
         {!sellerInactive && isLoggedIn && visibleRoute === "/ventas" && (
@@ -1165,6 +1219,7 @@ function mapSupabaseProduct(row: {
   description: string | null;
   image_url: string | null;
   quantity: number;
+  reserved?: number | null;
   price_ars: number;
 }): Product {
   return {
@@ -1174,6 +1229,7 @@ function mapSupabaseProduct(row: {
     category: row.category as Product["category"],
     description: row.description ?? "",
     quantity: row.quantity,
+    reserved: row.reserved ?? 0,
     price: row.price_ars,
     imageUrl: row.image_url ?? "",
   };

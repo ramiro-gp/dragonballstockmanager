@@ -94,6 +94,7 @@ export type Product = {
   category: ProductCategory;
   description: string;
   quantity: number;
+  reserved: number;
   price: number;
   imageUrl: string;
 };
