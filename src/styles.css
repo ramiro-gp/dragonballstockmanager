@@ -1463,6 +1463,12 @@ textarea.input {
   font-weight: 900;
 }
 
+.save-feedback.error {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
 .manage-row {
   display: grid;
   grid-template-columns: 72px 82px minmax(110px, 1fr) minmax(140px, 1fr) 84px 104px 36px;

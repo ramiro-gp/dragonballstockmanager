@@ -39,6 +39,7 @@ export function StockManagerPage({
   const [cardsPurchaseCost, setCardsPurchaseCost] = useState(0);
   const [variantDrafts, setVariantDrafts] = useState<Record<string, VariantDraft>>({});
   const [publishedMessage, setPublishedMessage] = useState("");
+  const [publishError, setPublishError] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
   const [productName, setProductName] = useState("");
   const [productCategory, setProductCategory] = useState<Product["category"]>("lote");
@@ -96,6 +97,7 @@ export function StockManagerPage({
 
   function updateVariantRow(key: string, patch: Partial<VariantDraft>) {
     setPublishedMessage("");
+    setPublishError("");
     setVariantDrafts((current) => {
       const currentRow = current[key];
       if (!currentRow) return current;
@@ -116,6 +118,8 @@ export function StockManagerPage({
 
   async function publishCards() {
     if (!totalToPublish) return;
+    setPublishedMessage("");
+    setPublishError("");
     const rowsToPublish: PublishCardInput[] = [
       ...Object.entries(commonGroups).map(([number, quantity]) => ({
         number,
@@ -147,10 +151,17 @@ export function StockManagerPage({
         ...savedRows,
       ]);
       setPublishedMessage(`${totalToPublish} cartas publicadas.`);
+      setCardList("");
+      setVariantDrafts({});
       if (cardsPurchaseCost > 0) {
         onRegisterExpense?.(cardsPurchaseCost, `Costo de compra: ${totalToPublish} cartas`);
         setCardsPurchaseCost(0);
       }
+      return;
+    }
+
+    if (onPublishCards) {
+      setPublishError("No pude publicar las cartas. Revisá la conexión y probá de nuevo.");
       return;
     }
 
@@ -189,6 +200,8 @@ export function StockManagerPage({
       return next;
     });
     setPublishedMessage(`${totalToPublish} cartas publicadas.`);
+    setCardList("");
+    setVariantDrafts({});
     if (cardsPurchaseCost > 0) {
       onRegisterExpense?.(cardsPurchaseCost, `Costo de compra: ${totalToPublish} cartas`);
       setCardsPurchaseCost(0);
@@ -198,6 +211,8 @@ export function StockManagerPage({
   async function loadProduct() {
     const name = productName.trim();
     if (!name || productQuantity <= 0) return;
+    setPublishedMessage("");
+    setPublishError("");
 
     const productToPublish: PublishProductInput = {
       name,
@@ -215,6 +230,11 @@ export function StockManagerPage({
     const savedProduct = onPublishProduct ? await onPublishProduct(productToPublish) : null;
     setIsPublishing(false);
 
+    if (onPublishProduct && !savedProduct) {
+      setPublishError("No pude publicar el producto. Revisá la conexión, la foto y probá de nuevo.");
+      return;
+    }
+
     setProducts((current) => [
       ...current,
       savedProduct ?? {
@@ -230,6 +250,7 @@ export function StockManagerPage({
       },
     ]);
     if (productPurchaseCost > 0) onRegisterExpense?.(productPurchaseCost, `Costo de compra: ${name}`);
+    setPublishedMessage(`Producto "${name}" publicado.`);
     setProductName("");
     setProductDescription("");
     setProductQuantity(1);
@@ -337,6 +358,7 @@ export function StockManagerPage({
             </div>
             <div className="publish-sheet-footer">
               {publishedMessage && <span className="save-feedback">{publishedMessage}</span>}
+              {publishError && <span className="save-feedback error">{publishError}</span>}
               <button className="primary-button" onClick={publishCards} disabled={!totalToPublish || isPublishing}>
                 <PackagePlus size={18} />
                 {isPublishing ? "Publicando..." : `Publicar ${totalToPublish} cartas`}
@@ -372,10 +394,15 @@ export function StockManagerPage({
               <label className="field"><span>Costo de compra</span><input type="number" min={0} value={productPurchaseCost} onChange={(event) => setProductPurchaseCost(Math.max(0, Number(event.target.value)))} /></label>
               <label className="field product-load-wide"><span>Descripcion</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Ej: expansion completa, incluye caja original, estado general, si faltan o sobran cartas..." maxLength={600} /></label>
               <label className="field"><span>Foto del producto</span><input type="file" accept="image/*" onChange={(event) => setProductImageFile(event.target.files?.[0] ?? null)} /></label>
-              <label className="field"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." disabled={Boolean(productImageFile)} /></label>              <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim() || isPublishing}>
+              <label className="field"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." disabled={Boolean(productImageFile)} /></label>
+              <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim() || isPublishing}>
                 <PackagePlus size={18} />
                 {isPublishing ? "Publicando..." : "Publicar producto"}
               </button>
+            </div>
+            <div className="publish-sheet-footer">
+              {publishedMessage && <span className="save-feedback">{publishedMessage}</span>}
+              {publishError && <span className="save-feedback error">{publishError}</span>}
             </div>
           </section>
           <aside className="tool-surface h-fit">

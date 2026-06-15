@@ -43,6 +43,8 @@ export function StockManagementPage({
   const [cardQuery, setCardQuery] = useState("");
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [cardPage, setCardPage] = useState(1);
+  const [savingCards, setSavingCards] = useState(false);
+  const [savingProducts, setSavingProducts] = useState(false);
 
   useEffect(() => setDraftStock(stock), [stock]);
   useEffect(() => setDraftProducts(products), [products]);
@@ -68,7 +70,13 @@ export function StockManagementPage({
 
   function updateCard(itemId: string, patch: Partial<Pick<CardStock, "quantity" | "price" | "kind" | "variant">>) {
     setSavedMessage("");
-    setDraftStock((current) => current.map((item) => item.id === itemId ? { ...item, ...patch } : item));
+    setDraftStock((current) =>
+      current.map((item) => {
+        if (item.id !== itemId) return item;
+        const quantity = patch.quantity === undefined ? item.quantity : Math.max(item.reserved, patch.quantity);
+        return { ...item, ...patch, quantity };
+      }),
+    );
   }
 
   function updateProduct(productId: string, patch: Partial<Pick<Product, "quantity" | "price" | "name" | "category" | "description" | "imageUrl">>) {
@@ -110,8 +118,11 @@ export function StockManagementPage({
   }
 
   async function saveCardChanges() {
+    setSavingCards(true);
     const fallbackRows = draftStock.map((item) => ({ ...item, sellerId }));
     const savedRows = onSaveCards ? await onSaveCards(fallbackRows) : fallbackRows;
+    setSavingCards(false);
+
     if (!savedRows) {
       setSavedMessage("No pude guardar las cartas. Revisá la conexión y probá de nuevo.");
       return;
@@ -126,8 +137,11 @@ export function StockManagementPage({
   }
 
   async function saveProductChanges() {
+    setSavingProducts(true);
     const fallbackRows = draftProducts.map((item) => ({ ...item, sellerId }));
     const savedRows = onSaveProducts ? await onSaveProducts(fallbackRows) : fallbackRows;
+    setSavingProducts(false);
+
     if (!savedRows) {
       setSavedMessage("No pude guardar los productos. Revisá la conexión y probá de nuevo.");
       return;
@@ -138,6 +152,15 @@ export function StockManagementPage({
       ...savedRows,
     ]);
     setSavedMessage("Productos guardados.");
+  }
+
+  function deleteCard(item: CardStock) {
+    if (item.reserved > 0) {
+      setSavedMessage("No podés borrar una carta con unidades reservadas. Cancelá o cerrá primero esas ventas.");
+      return;
+    }
+    setSavedMessage("");
+    setDraftStock((current) => current.filter((row) => row.id !== item.id));
   }
 
   return (
@@ -184,17 +207,17 @@ export function StockManagementPage({
                 <option value="holo">{kindLabel.holo}</option>
               </select>
             </label>
-            <button className="danger-button compact" onClick={subtractSelectedCards} disabled={!selectedCardIds.length}>
+            <button className="danger-button compact" onClick={subtractSelectedCards} disabled={!selectedCardIds.length || savingCards}>
               <Trash2 size={16} />
               Borrar 1 carta por selección
             </button>
-            <button className="secondary-button compact" onClick={discardChanges} disabled={!cardsDirty && !productsDirty}>
+            <button className="secondary-button compact" onClick={discardChanges} disabled={savingCards || savingProducts || (!cardsDirty && !productsDirty)}>
               <RotateCcw size={16} />
               Descartar
             </button>
-            <button className="primary-button compact" onClick={saveCardChanges} disabled={!cardsDirty}>
+            <button className="primary-button compact" onClick={saveCardChanges} disabled={!cardsDirty || savingCards}>
               <Save size={16} />
-              Guardar cambios
+              {savingCards ? "Guardando..." : "Guardar cambios"}
             </button>
           </div>
         </div>
@@ -224,9 +247,9 @@ export function StockManagementPage({
               <select value={item.variant} onChange={(event) => updateCard(item.id, { variant: event.target.value })}>
                 {getCardColorOptions(item).map((variant) => <option key={variant} value={variant}>{variant}</option>)}
               </select>
-              <input type="number" min={0} value={item.quantity} onChange={(event) => updateCard(item.id, { quantity: Math.max(0, Number(event.target.value)) })} />
+              <input type="number" min={item.reserved} value={item.quantity} onChange={(event) => updateCard(item.id, { quantity: Math.max(0, Number(event.target.value)) })} title={item.reserved > 0 ? `${item.reserved} reservadas` : undefined} />
               <input type="number" min={0} value={item.price} onChange={(event) => updateCard(item.id, { price: Math.max(0, Number(event.target.value)) })} />
-              <button className="ghost-icon" onClick={() => setDraftStock((current) => current.filter((row) => row.id !== item.id))} aria-label="Eliminar carta">
+              <button className="ghost-icon" onClick={() => deleteCard(item)} aria-label="Eliminar carta" disabled={item.reserved > 0}>
                 <Trash2 size={16} />
               </button>
             </div>
@@ -241,13 +264,13 @@ export function StockManagementPage({
         <div className="section-heading">
           <h3>Productos</h3>
           <div className="table-actions">
-            <button className="secondary-button compact" onClick={discardChanges} disabled={!cardsDirty && !productsDirty}>
+            <button className="secondary-button compact" onClick={discardChanges} disabled={savingCards || savingProducts || (!cardsDirty && !productsDirty)}>
               <RotateCcw size={16} />
               Descartar
             </button>
-            <button className="primary-button compact" onClick={saveProductChanges} disabled={!productsDirty}>
+            <button className="primary-button compact" onClick={saveProductChanges} disabled={!productsDirty || savingProducts}>
               <Save size={16} />
-              Guardar cambios
+              {savingProducts ? "Guardando..." : "Guardar cambios"}
             </button>
           </div>
         </div>
