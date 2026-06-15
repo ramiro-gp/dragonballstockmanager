@@ -2004,7 +2004,7 @@ textarea.input {
 
 .seller-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.8fr 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr 1.25fr 0.8fr 1fr 1fr auto;
   gap: 0.75rem;
   align-items: center;
   border: 1px solid var(--line);
@@ -2017,6 +2017,15 @@ textarea.input {
 .seller-row.header {
   color: var(--muted);
   font-weight: 900;
+}
+
+.admin-toggle {
+  min-height: 38px;
+}
+
+.admin-renewal select {
+  width: 100%;
+  min-height: 38px;
 }
 
 .status-active {

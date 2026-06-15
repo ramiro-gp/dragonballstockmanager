@@ -201,6 +201,7 @@ export function App() {
     await loadSellerInventoryFromSupabase(userId);
     await loadSellerSalesFromSupabase(userId);
     await loadBalanceAdjustmentsFromSupabase(userId);
+    if (supabaseSeller.role === "admin") await loadAdminSellersFromSupabase(supabaseSeller.id);
   }
 
   async function loadPublicSellersFromSupabase() {
@@ -213,13 +214,54 @@ export function App() {
 
     if (!data?.length) return;
 
-    const mapped = data.map(mapSupabaseSeller);
+    const mapped = (data as Parameters<typeof mapSupabaseSeller>[0][]).map(mapSupabaseSeller);
     const main = mapped.find((seller) => seller.slug === "ramitagarcia") ?? mapped[0];
     setCurrentSeller((current) => current.id === fallbackSellerId ? main : current);
     setSellerDirectory([
       { ...main, isMain: true },
       ...mapped.filter((seller) => seller.id !== main.id).map((seller) => ({ ...seller, isMain: false })),
     ]);
+  }
+
+  async function loadAdminSellersFromSupabase(mainSellerId = currentSeller.id) {
+    if (!supabase) return;
+
+    const { data, error } = await supabase.rpc("admin_list_sellers");
+    if (error) {
+      notify("info", "Para ver todos los vendedores, falta aplicar el SQL admin_tools_v1 en Supabase.");
+      return;
+    }
+    if (!data?.length) return;
+
+    const mapped = (data as Parameters<typeof mapSupabaseSeller>[0][]).map(mapSupabaseSeller);
+    const main = mapped.find((seller) => seller.id === mainSellerId) ?? mapped.find((seller) => seller.slug === "ramitagarcia") ?? mapped[0];
+    setSellerDirectory([
+      { ...main, isMain: true },
+      ...mapped.filter((seller) => seller.id !== main.id).map((seller) => ({ ...seller, isMain: false })),
+    ]);
+  }
+
+  async function updateAdminSellerPlan(sellerId: string, input: { active: boolean; months: number; lifetime: boolean }) {
+    if (!supabase) {
+      notify("error", "Falta configurar Supabase para administrar vendedores.");
+      return false;
+    }
+
+    const { error } = await supabase.rpc("admin_update_seller_subscription", {
+      p_seller_id: sellerId,
+      p_active: input.active,
+      p_months: Math.min(12, Math.max(1, input.months)),
+      p_lifetime: input.lifetime,
+    });
+
+    if (error) {
+      notify("error", "No pude actualizar el vendedor. Revisa que hayas aplicado admin_tools_v1.");
+      return false;
+    }
+
+    notify("success", "Vendedor actualizado.");
+    await loadAdminSellersFromSupabase();
+    return true;
   }
 
   async function saveSellerProfile(patch: SellerProfilePatch) {
@@ -1107,12 +1149,13 @@ export function App() {
           {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
             <SettingsPage
               seller={currentSeller}
-              sellers={sellerDirectory}
-              isSuperAdmin={currentSeller.role === "admin"}
-              navigateCreateSeller={() => navigate("/crear-vendedor")}
-              onSaveProfile={saveSellerProfile}
-              onChangePassword={changePassword}
-            />
+            sellers={sellerDirectory}
+            isSuperAdmin={currentSeller.role === "admin"}
+            navigateCreateSeller={() => navigate("/crear-vendedor")}
+            onUpdateSellerPlan={updateAdminSellerPlan}
+            onSaveProfile={saveSellerProfile}
+            onChangePassword={changePassword}
+          />
           )}
           {!sellerInactive && isLoggedIn && visibleRoute === "/crear-vendedor" && <CreateSellerPage />}
         </Suspense>

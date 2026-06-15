@@ -15,6 +15,7 @@ export function SettingsPage({
   sellers,
   isSuperAdmin,
   navigateCreateSeller,
+  onUpdateSellerPlan,
   onSaveProfile,
   onChangePassword,
 }: {
@@ -22,6 +23,7 @@ export function SettingsPage({
   sellers: Seller[];
   isSuperAdmin: boolean;
   navigateCreateSeller: () => void;
+  onUpdateSellerPlan: (sellerId: string, input: { active: boolean; months: number; lifetime: boolean }) => Promise<boolean>;
   onSaveProfile: (patch: SellerProfilePatch) => Promise<boolean>;
   onChangePassword: (password: string) => Promise<boolean>;
 }) {
@@ -34,6 +36,7 @@ export function SettingsPage({
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [saving, setSaving] = useState(false);
+  const [adminDrafts, setAdminDrafts] = useState<Record<string, { active: boolean; months: number; lifetime: boolean }>>({});
 
   useEffect(() => {
     setName(seller.name);
@@ -42,6 +45,20 @@ export function SettingsPage({
     setShippingEnabled(seller.shippingEnabled);
     setShippingCompanies(seller.shippingCompanies);
   }, [seller]);
+  useEffect(() => {
+    setAdminDrafts(
+      Object.fromEntries(
+        sellers.map((item) => [
+          item.id,
+          {
+            active: item.status === "active",
+            months: 1,
+            lifetime: item.subscriptionPlan === "lifetime" || item.subscriptionPlan === "owner",
+          },
+        ]),
+      ),
+    );
+  }, [sellers]);
 
   function toggleShipping(company: string) {
     setShippingCompanies((current) =>
@@ -91,6 +108,26 @@ export function SettingsPage({
     setSaving(false);
     if (ok) setWhatsapp(patch.whatsapp);
     return ok;
+  }
+
+  function updateAdminDraft(sellerId: string, patch: Partial<{ active: boolean; months: number; lifetime: boolean }>) {
+    setAdminDrafts((current) => ({
+      ...current,
+      [sellerId]: {
+        active: current[sellerId]?.active ?? true,
+        months: current[sellerId]?.months ?? 1,
+        lifetime: current[sellerId]?.lifetime ?? false,
+        ...patch,
+      },
+    }));
+  }
+
+  async function saveAdminSellerPlan(sellerId: string) {
+    const draft = adminDrafts[sellerId];
+    if (!draft) return;
+    setSaving(true);
+    await onUpdateSellerPlan(sellerId, draft);
+    setSaving(false);
   }
 
   const passwordMismatch = Boolean(password || passwordConfirm) && password !== passwordConfirm;
@@ -189,16 +226,39 @@ export function SettingsPage({
               <span>Vendedor</span>
               <span>WhatsApp</span>
               <span>Estado</span>
-              <span>Miembro desde</span>
+              <span>Desde</span>
               <span>Vence</span>
+              <span>Renovar</span>
+              <span></span>
             </div>
             {sellers.map((item) => (
               <div className="seller-row" key={item.id}>
                 <span>{item.name}</span>
                 <span>{item.whatsapp}</span>
-                <strong className={item.status === "active" ? "status-active" : "status-inactive"}>{item.status === "active" ? "Activo" : "Inactivo"}</strong>
+                <div className="view-toggle two-choice admin-toggle">
+                  <button className={(adminDrafts[item.id]?.active ?? item.status === "active") ? "active" : ""} onClick={() => updateAdminDraft(item.id, { active: true })}>Activo</button>
+                  <button className={!(adminDrafts[item.id]?.active ?? item.status === "active") ? "active" : ""} onClick={() => updateAdminDraft(item.id, { active: false })}>Pausado</button>
+                </div>
                 <span>{item.memberSince}</span>
                 <span>{item.subscriptionPlan === "lifetime" || item.subscriptionPlan === "owner" ? "Sin vencimiento" : item.subscriptionUntil}</span>
+                <div className="admin-renewal">
+                  <select
+                    value={adminDrafts[item.id]?.lifetime ? "lifetime" : String(adminDrafts[item.id]?.months ?? 1)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      updateAdminDraft(item.id, { lifetime: value === "lifetime", months: value === "lifetime" ? 1 : Number(value) });
+                    }}
+                    disabled={item.subscriptionPlan === "owner"}
+                  >
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                      <option key={month} value={month}>{month} {month === 1 ? "mes" : "meses"}</option>
+                    ))}
+                    <option value="lifetime">Pago unico</option>
+                  </select>
+                </div>
+                <button className="primary-button compact" onClick={() => saveAdminSellerPlan(item.id)} disabled={saving || item.subscriptionPlan === "owner"}>
+                  Guardar
+                </button>
               </div>
             ))}
           </div>
