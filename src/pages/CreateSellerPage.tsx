@@ -7,10 +7,9 @@ const provinces = [
   "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucuman",
 ];
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 export type CreateSellerInput = {
-  userId: string;
+  email: string;
+  password: string;
   slug: string;
   displayName: string;
   whatsapp: string;
@@ -25,7 +24,8 @@ export function CreateSellerPage({
   onCreateSeller: (input: CreateSellerInput) => Promise<boolean>;
 }) {
   const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1);
-  const [userId, setUserId] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [slug, setSlug] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
@@ -34,7 +34,8 @@ export function CreateSellerPage({
   const [saving, setSaving] = useState(false);
 
   const normalizedSlug = useMemo(() => normalizeSlug(slug || displayName), [displayName, slug]);
-  const valid = uuidPattern.test(userId.trim())
+  const valid = email.includes("@")
+    && password.length >= 8
     && normalizedSlug.length >= 3
     && displayName.trim().length >= 2
     && isValidArgentinaWhatsapp(whatsapp);
@@ -43,7 +44,8 @@ export function CreateSellerPage({
     if (!valid) return;
     setSaving(true);
     const ok = await onCreateSeller({
-      userId: userId.trim(),
+      email: email.trim(),
+      password,
       slug: normalizedSlug,
       displayName: displayName.trim(),
       whatsapp: normalizeArgentinaWhatsapp(whatsapp),
@@ -54,7 +56,8 @@ export function CreateSellerPage({
     setSaving(false);
 
     if (ok) {
-      setUserId("");
+      setEmail("");
+      setPassword("");
       setDisplayName("");
       setSlug("");
       setWhatsapp("");
@@ -68,19 +71,23 @@ export function CreateSellerPage({
       <p className="eyebrow">Super admin</p>
       <h1 className="panel-title">Crear vendedor</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">
-        Primero crea el usuario en Supabase Auth y copia su User UID. Este formulario crea el perfil vendedor, su link publico y sus ajustes iniciales.
+        Crea el login, el perfil vendedor, su link publico y sus ajustes iniciales desde una sola pantalla.
       </p>
 
       <div className="mt-4 assistant-summary">
-        <span><strong>Paso 1:</strong> Supabase &gt; Authentication &gt; Users &gt; Add user.</span>
-        <span><strong>Paso 2:</strong> Copia el User UID del usuario creado.</span>
-        <span><strong>Paso 3:</strong> Completa este formulario y guarda el perfil vendedor.</span>
+        <span><strong>Email:</strong> sera el usuario con el que el vendedor inicia sesion.</span>
+        <span><strong>Contrasena temporal:</strong> pasasela al vendedor y despues puede cambiarla en Ajustes.</span>
+        <span><strong>Link publico:</strong> el slug define la URL /nombre-vendedor/stock.</span>
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="field">
-          <span>User UID de Supabase</span>
-          <input value={userId} onChange={(event) => setUserId(event.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+          <span>Email</span>
+          <input value={email} onChange={(event) => setEmail(event.target.value)} maxLength={80} placeholder="vendedor@email.com" />
+        </label>
+        <label className="field">
+          <span>Contrasena temporal</span>
+          <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" minLength={8} maxLength={120} placeholder="Minimo 8 caracteres" />
         </label>
         <label className="field">
           <span>Nombre visible</span>
@@ -110,7 +117,7 @@ export function CreateSellerPage({
       </div>
 
       <p className={isValidArgentinaWhatsapp(whatsapp) ? "field-hint" : "field-hint error"}>{whatsappHint(whatsapp)}</p>
-      {userId && !uuidPattern.test(userId.trim()) && <p className="field-hint error">El User UID tiene que ser un UUID valido de Supabase Auth.</p>}
+      {password && password.length < 8 && <p className="field-hint error">La contrasena temporal debe tener al menos 8 caracteres.</p>}
       <p className="field-hint">Link publico: /{normalizedSlug || "slug-vendedor"}/stock</p>
 
       <button className="primary-button mt-4" disabled={!valid || saving} onClick={createSeller}>

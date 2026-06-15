@@ -271,18 +271,21 @@ export function App() {
       return false;
     }
 
-    const { error } = await supabase.rpc("admin_create_seller_profile", {
-      p_user_id: input.userId,
-      p_slug: input.slug,
-      p_display_name: input.displayName,
-      p_whatsapp: input.whatsapp,
-      p_location: input.location,
-      p_months: Math.min(12, Math.max(1, input.months)),
-      p_lifetime: input.lifetime,
+    const { error } = await supabase.functions.invoke("admin-create-seller", {
+      body: {
+        email: input.email,
+        password: input.password,
+        slug: input.slug,
+        displayName: input.displayName,
+        whatsapp: input.whatsapp,
+        location: input.location,
+        months: Math.min(12, Math.max(1, input.months)),
+        lifetime: input.lifetime,
+      },
     });
 
     if (error) {
-      notify("error", "No pude crear el vendedor. Revisa el UID, el slug y el SQL admin_tools_v1.");
+      notify("error", "No pude crear el vendedor. Revisa que la Edge Function admin-create-seller este desplegada.");
       return false;
     }
 
