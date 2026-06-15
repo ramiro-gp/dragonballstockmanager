@@ -6,6 +6,8 @@ import { availableQuantity, formatMoney, kindLabel, paidTotal, statusLabel } fro
 import { sortCardStock } from "../lib/sorting";
 import { Metric } from "../components/shared/Metric";
 
+const pageSize = 8;
+
 export function SalesPage({
   sales,
   stock,
@@ -19,24 +21,31 @@ export function SalesPage({
   sales: Sale[];
   stock: CardStock[];
   products: Product[];
-  changeSaleStatus: (saleId: string, status: SaleStatus) => void;
+  changeSaleStatus: (saleId: string, status: SaleStatus) => Promise<void> | void;
   updateSaleLine: (saleId: string, lineIndex: number, quantity: number, price: number) => void;
-  saveSaleLines: (saleId: string, lines: SaleLine[]) => void;
-  createManualSale: (input: { customerName: string; customerWhatsapp?: string; note?: string; date: string; lines: SaleLine[]; applyStock: boolean }) => void;
-  archiveSale: (saleId: string) => void;
-  deleteSale: (saleId: string) => void;
+  saveSaleLines: (saleId: string, lines: SaleLine[]) => Promise<void> | void;
+  createManualSale: (input: { customerName: string; customerWhatsapp?: string; note?: string; date: string; lines: SaleLine[]; applyStock: boolean }) => Promise<void> | void;
+  archiveSale: (saleId: string) => Promise<void> | void;
+  deleteSale: (saleId: string) => Promise<void> | void;
 }) {
   const [draftLines, setDraftLines] = useState<Record<string, SaleLine[]>>({});
   const [view, setView] = useState<"active" | "archived">("active");
+  const [page, setPage] = useState(1);
+  const [savingSaleIds, setSavingSaleIds] = useState<string[]>([]);
+  const [savingManualSale, setSavingManualSale] = useState(false);
+  const [feedback, setFeedback] = useState("");
   const [manualName, setManualName] = useState("");
   const [manualWhatsapp, setManualWhatsapp] = useState("");
   const [manualNote, setManualNote] = useState("");
   const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10));
   const [manualApplyStock, setManualApplyStock] = useState(true);
   const [manualLines, setManualLines] = useState<SaleLine[]>([]);
-  const sortedStock = useMemo(() => [...stock].sort(sortCardStock), [stock]);
-  const sortedProducts = useMemo(() => [...products].sort((a, b) => a.name.localeCompare(b.name)), [products]);
+
+  const sortedStock = useMemo(() => [...stock].filter((item) => availableQuantity(item) > 0).sort(sortCardStock), [stock]);
+  const sortedProducts = useMemo(() => [...products].filter((item) => item.quantity > 0).sort((a, b) => a.name.localeCompare(b.name)), [products]);
   const visibleSales = sales.filter((sale) => view === "archived" ? Boolean(sale.archivedAt) : !sale.archivedAt);
+  const pageCount = Math.max(1, Math.ceil(visibleSales.length / pageSize));
+  const pagedSales = visibleSales.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setDraftLines((current) => {
@@ -44,18 +53,17 @@ export function SalesPage({
       sales.forEach((sale) => {
         if (!next[sale.id]) next[sale.id] = sale.lines.map((line) => ({ ...line }));
       });
+      Object.keys(next).forEach((saleId) => {
+        if (!sales.some((sale) => sale.id === saleId)) delete next[saleId];
+      });
       return next;
     });
   }, [sales]);
 
-  function updateDraftLine(saleId: string, lineIndex: number, patch: Partial<SaleLine>) {
-    setDraftLines((current) => ({
-      ...current,
-      [saleId]: (current[saleId] ?? []).map((line, index) => index === lineIndex ? { ...line, ...patch } : line),
-    }));
-  }
+  useEffect(() => setPage(1), [view, sales.length]);
 
   function cardToLine(item: CardStock): SaleLine {
+    const maxQuantity = Math.max(1, availableQuantity(item));
     return {
       itemType: "card",
       itemId: item.id,
@@ -64,7 +72,7 @@ export function SalesPage({
       unitPrice: item.price,
       finalUnitPrice: item.price,
       quantity: 1,
-      maxQuantity: Math.max(1, availableQuantity(item)),
+      maxQuantity,
     };
   }
 
@@ -81,20 +89,32 @@ export function SalesPage({
     };
   }
 
-  function addStockLine(sale: Sale, itemId: string) {
+  function updateDraftLine(saleId: string, lineIndex: number, patch: Partial<SaleLine>) {
+    setFeedback("");
+    setDraftLines((current) => ({
+      ...current,
+      [saleId]: (current[saleId] ?? []).map((line, index) => {
+        if (index !== lineIndex) return line;
+        const quantity = patch.quantity === undefined ? line.quantity : Math.min(line.maxQuantity, Math.max(1, patch.quantity));
+        return { ...line, ...patch, quantity };
+      }),
+    }));
+  }
+
+  async function addStockLine(sale: Sale, itemId: string) {
     const item = stock.find((stockItem) => stockItem.id === itemId);
     if (!item) return;
     const nextLines = [...(draftLines[sale.id] ?? sale.lines), cardToLine(item)];
     setDraftLines((current) => ({ ...current, [sale.id]: nextLines }));
-    saveSaleLines(sale.id, nextLines);
+    await save(sale.id, nextLines);
   }
 
-  function addProductLine(sale: Sale, itemId: string) {
+  async function addProductLine(sale: Sale, itemId: string) {
     const product = products.find((item) => item.id === itemId);
     if (!product) return;
     const nextLines = [...(draftLines[sale.id] ?? sale.lines), productToLine(product)];
     setDraftLines((current) => ({ ...current, [sale.id]: nextLines }));
-    saveSaleLines(sale.id, nextLines);
+    await save(sale.id, nextLines);
   }
 
   function addManualCard(itemId: string) {
@@ -108,12 +128,17 @@ export function SalesPage({
   }
 
   function updateManualLine(index: number, patch: Partial<SaleLine>) {
-    setManualLines((current) => current.map((line, rowIndex) => rowIndex === index ? { ...line, ...patch } : line));
+    setManualLines((current) => current.map((line, rowIndex) => {
+      if (rowIndex !== index) return line;
+      const quantity = patch.quantity === undefined ? line.quantity : Math.min(line.maxQuantity, Math.max(1, patch.quantity));
+      return { ...line, ...patch, quantity };
+    }));
   }
 
-  function submitManualSale() {
+  async function submitManualSale() {
     if (!manualLines.length) return;
-    createManualSale({
+    setSavingManualSale(true);
+    await createManualSale({
       customerName: manualName,
       customerWhatsapp: manualWhatsapp,
       note: manualNote,
@@ -121,14 +146,33 @@ export function SalesPage({
       lines: manualLines,
       applyStock: manualApplyStock,
     });
+    setSavingManualSale(false);
     setManualName("");
     setManualWhatsapp("");
     setManualNote("");
     setManualLines([]);
+    setFeedback("Venta manual cargada.");
   }
 
-  function save(saleId: string) {
-    saveSaleLines(saleId, draftLines[saleId] ?? []);
+  async function save(saleId: string, lines = draftLines[saleId] ?? []) {
+    setFeedback("");
+    setSavingSaleIds((current) => Array.from(new Set([...current, saleId])));
+    await saveSaleLines(saleId, lines);
+    setSavingSaleIds((current) => current.filter((id) => id !== saleId));
+    setFeedback("Cambios guardados.");
+  }
+
+  async function setStatus(sale: Sale, status: SaleStatus) {
+    if (sale.status === status) return;
+    if (status === "cancelada") {
+      const ok = window.confirm("Vas a cancelar este pedido. Si tenía stock aplicado, se libera.");
+      if (!ok) return;
+    }
+    setFeedback("");
+    setSavingSaleIds((current) => Array.from(new Set([...current, sale.id])));
+    await changeSaleStatus(sale.id, status);
+    setSavingSaleIds((current) => current.filter((id) => id !== sale.id));
+    setFeedback("Estado actualizado.");
   }
 
   return (
@@ -143,6 +187,7 @@ export function SalesPage({
           <button className={clsx(view === "archived" && "active")} onClick={() => setView("archived")}>Archivados</button>
         </div>
       </div>
+      {feedback && <p className="save-feedback">{feedback}</p>}
 
       <section className="tool-surface">
         <div className="section-heading">
@@ -150,9 +195,9 @@ export function SalesPage({
             <p className="eyebrow">Venta manual</p>
             <h3>Cargar venta fuera del sistema</h3>
           </div>
-          <button className="primary-button compact" disabled={!manualLines.length} onClick={submitManualSale}>
+          <button className="primary-button compact" disabled={!manualLines.length || savingManualSale} onClick={submitManualSale}>
             <Plus size={16} />
-            Agregar venta
+            {savingManualSale ? "Guardando..." : "Agregar venta"}
           </button>
         </div>
         <div className="manual-sale-grid mt-4">
@@ -163,8 +208,20 @@ export function SalesPage({
             <input type="checkbox" checked={manualApplyStock} onChange={(event) => setManualApplyStock(event.target.checked)} />
             Descontar stock
           </label>
-          <label className="field"><span>Agregar carta</span><select defaultValue="" onChange={(event) => { addManualCard(event.target.value); event.currentTarget.value = ""; }}><option value="" disabled>Elegir carta</option>{sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {item.variant}</option>)}</select></label>
-          <label className="field"><span>Agregar producto</span><select defaultValue="" onChange={(event) => { addManualProduct(event.target.value); event.currentTarget.value = ""; }}><option value="" disabled>Elegir producto</option>{sortedProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>
+          <label className="field">
+            <span>Agregar carta</span>
+            <select defaultValue="" onChange={(event) => { addManualCard(event.target.value); event.currentTarget.value = ""; }}>
+              <option value="" disabled>Elegir carta</option>
+              {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {item.variant}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Agregar producto</span>
+            <select defaultValue="" onChange={(event) => { addManualProduct(event.target.value); event.currentTarget.value = ""; }}>
+              <option value="" disabled>Elegir producto</option>
+              {sortedProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+            </select>
+          </label>
           <label className="field manual-note"><span>Nota</span><input value={manualNote} onChange={(event) => setManualNote(event.target.value)} placeholder="Ej: venta en plaza, precio arreglado por WhatsApp..." /></label>
         </div>
         {manualLines.length > 0 && (
@@ -172,7 +229,7 @@ export function SalesPage({
             {manualLines.map((line, index) => (
               <div key={`${line.itemId}-${index}`} className="sale-edit-row">
                 <div><p>{line.label}</p><span>Original: {formatMoney(line.unitPrice)}</span></div>
-                <input type="number" min={1} value={line.quantity} onChange={(event) => updateManualLine(index, { quantity: Math.max(1, Number(event.target.value)) })} />
+                <input type="number" min={1} max={line.maxQuantity} value={line.quantity} onChange={(event) => updateManualLine(index, { quantity: Math.max(1, Number(event.target.value)) })} />
                 <input type="number" min={0} value={line.finalUnitPrice} onChange={(event) => updateManualLine(index, { finalUnitPrice: Math.max(0, Number(event.target.value)) })} />
                 <button className="ghost-icon" onClick={() => setManualLines((current) => current.filter((_, rowIndex) => rowIndex !== index))} aria-label="Quitar item"><X size={16} /></button>
               </div>
@@ -181,11 +238,15 @@ export function SalesPage({
         )}
       </section>
 
-      <span>{visibleSales.length} pedidos</span>
-      {visibleSales.map((sale) => {
+      <div className="section-heading">
+        <span>{visibleSales.length} pedidos</span>
+        {pageCount > 1 && <span>Página {page} de {pageCount}</span>}
+      </div>
+      {pagedSales.map((sale) => {
         const lines = draftLines[sale.id] ?? sale.lines;
         const total = lines.reduce((sum, line) => sum + line.finalUnitPrice * line.quantity, 0);
         const paid = paidTotal(sale);
+        const isSavingSale = savingSaleIds.includes(sale.id);
         return (
           <article key={sale.id} className="tool-surface">
             <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
@@ -196,27 +257,27 @@ export function SalesPage({
               </div>
               <div className="status-group">
                 {(["pendiente", "reservada", "confirmada", "cancelada"] as SaleStatus[]).map((status) => (
-                  <button key={status} className={clsx("status-button", sale.status === status && "active")} onClick={() => changeSaleStatus(sale.id, status)}>
+                  <button key={status} className={clsx("status-button", sale.status === status && "active")} onClick={() => void setStatus(sale, status)} disabled={isSavingSale}>
                     {statusLabel[status]}
                   </button>
                 ))}
-                {!sale.archivedAt && <button className="secondary-button compact" onClick={() => archiveSale(sale.id)}><Archive size={16} />Archivar</button>}
-                {(sale.archivedAt || sale.status === "cancelada") && <button className="danger-button compact" onClick={() => deleteSale(sale.id)}><Trash2 size={16} />Borrar</button>}
-                <button className="primary-button compact" onClick={() => save(sale.id)}><Save size={16} />Guardar cambios</button>
+                {!sale.archivedAt && <button className="secondary-button compact" onClick={() => archiveSale(sale.id)} disabled={isSavingSale}><Archive size={16} />Archivar</button>}
+                {(sale.archivedAt || sale.status === "cancelada") && <button className="danger-button compact" onClick={() => deleteSale(sale.id)} disabled={isSavingSale}><Trash2 size={16} />Borrar</button>}
+                <button className="primary-button compact" onClick={() => void save(sale.id)} disabled={isSavingSale}><Save size={16} />{isSavingSale ? "Guardando..." : "Guardar cambios"}</button>
               </div>
             </div>
 
             <div className="sale-add-grid mt-4">
               <label className="field">
                 <span>Agregar otra carta</span>
-                <select defaultValue="" onChange={(event) => { addStockLine(sale, event.target.value); event.currentTarget.value = ""; }}>
+                <select defaultValue="" onChange={(event) => { void addStockLine(sale, event.target.value); event.currentTarget.value = ""; }} disabled={isSavingSale}>
                   <option value="" disabled>Elegir carta</option>
                   {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {item.variant}</option>)}
                 </select>
               </label>
               <label className="field">
                 <span>Agregar otro producto</span>
-                <select defaultValue="" onChange={(event) => { addProductLine(sale, event.target.value); event.currentTarget.value = ""; }}>
+                <select defaultValue="" onChange={(event) => { void addProductLine(sale, event.target.value); event.currentTarget.value = ""; }} disabled={isSavingSale}>
                   <option value="" disabled>Elegir producto</option>
                   {sortedProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
                 </select>
@@ -236,9 +297,9 @@ export function SalesPage({
                     <p>{line.label}</p>
                     <span>Original: {formatMoney(line.unitPrice)}</span>
                   </div>
-                  <input type="number" min={1} value={line.quantity} onChange={(event) => updateDraftLine(sale.id, index, { quantity: Math.max(1, Number(event.target.value)) })} />
+                  <input type="number" min={1} max={line.maxQuantity} value={line.quantity} onChange={(event) => updateDraftLine(sale.id, index, { quantity: Math.min(line.maxQuantity, Math.max(1, Number(event.target.value))) })} />
                   <input type="number" min={0} value={line.finalUnitPrice} onChange={(event) => updateDraftLine(sale.id, index, { finalUnitPrice: Math.max(0, Number(event.target.value)) })} />
-                  <button className="ghost-icon" onClick={() => setDraftLines((current) => ({ ...current, [sale.id]: (current[sale.id] ?? []).filter((_, rowIndex) => rowIndex !== index) }))} aria-label="Quitar item">
+                  <button className="ghost-icon" onClick={() => setDraftLines((current) => ({ ...current, [sale.id]: (current[sale.id] ?? []).filter((_, rowIndex) => rowIndex !== index) }))} aria-label="Quitar item" disabled={isSavingSale}>
                     <X size={16} />
                   </button>
                 </div>
@@ -250,11 +311,19 @@ export function SalesPage({
               <Metric icon={Boxes} label="Saldo" value={formatMoney(Math.max(0, total - paid))} />
             </div>
             <p className="mt-3 text-xs text-[var(--muted)]">
-              Stock aplicado: {sale.stockApplied ? "si" : "no"}. Al guardar una venta reservada o confirmada, el stock se recalcula.
+              Stock aplicado: {sale.stockApplied ? "sí" : "no"}. Al guardar una venta reservada o confirmada, el stock se recalcula.
             </p>
           </article>
         );
       })}
+      {visibleSales.length === 0 && <p className="empty">No hay pedidos en esta vista.</p>}
+      {pageCount > 1 && (
+        <div className="pagination">
+          <button onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>Anterior</button>
+          <span>{page} / {pageCount}</span>
+          <button onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page === pageCount}>Siguiente</button>
+        </div>
+      )}
     </div>
   );
 }
