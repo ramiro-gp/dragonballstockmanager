@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
-import { availableQuantity, cartTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
+import { availableQuantity, cartTotal, formatMoney, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { compressProductImage } from "./lib/images";
 import { supabase } from "./lib/supabase";
 import type { BalanceAdjustment, CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
@@ -1062,6 +1062,7 @@ export function App() {
       </AppLayout>
       {balanceModalOpen && (
         <BalanceAdjustmentModal
+          adjustments={sellerBalanceAdjustments}
           onClose={() => setBalanceModalOpen(false)}
           onSave={async (input) => {
             await addBalanceAdjustment(input);
@@ -1302,9 +1303,11 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastMessage[]; dismiss: (
 }
 
 function BalanceAdjustmentModal({
+  adjustments,
   onClose,
   onSave,
 }: {
+  adjustments: BalanceAdjustment[];
   onClose: () => void;
   onSave: (input: Omit<BalanceAdjustment, "id" | "sellerId">) => Promise<void>;
 }) {
@@ -1331,14 +1334,18 @@ function BalanceAdjustmentModal({
           </div>
           <button className="ghost-icon" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
+        <div className="balance-modal-note">
+          <p>Usá este ajuste solo si al publicar cartas o productos no cargaste el costo, o si hiciste una compra/venta por fuera del sistema.</p>
+          <p>Ajustar el balance no modifica el stock. Si las cartas o productos están cargados, conviene ir a Historial y agregar una venta manual para descontar stock automáticamente.</p>
+        </div>
         <div className="mt-4 balance-adjust-grid">
-          <label className="field">
+          <div className="field">
             <span>Tipo</span>
-            <select value={type} onChange={(event) => setType(event.target.value as "income" | "expense")}>
-              <option value="income">Ingreso</option>
-              <option value="expense">Gasto</option>
-            </select>
-          </label>
+            <div className="view-toggle two-choice">
+              <button className={type === "income" ? "active" : ""} onClick={() => setType("income")}>Ingreso</button>
+              <button className={type === "expense" ? "active" : ""} onClick={() => setType("expense")}>Gasto</button>
+            </div>
+          </div>
           <label className="field">
             <span>Monto</span>
             <input type="number" min={0} value={amount} onChange={(event) => setAmount(Math.max(0, Number(event.target.value)))} />
@@ -1357,6 +1364,29 @@ function BalanceAdjustmentModal({
           <button className="primary-button compact" disabled={!amount || saving} onClick={save}>
             {saving ? "Guardando..." : "Guardar movimiento"}
           </button>
+        </div>
+        <div className="balance-history">
+          <div className="section-heading">
+            <h3>Historial de balance</h3>
+            <span>{adjustments.length} movimientos</span>
+          </div>
+          <div className="balance-history-table">
+            <div className="balance-history-row header">
+              <span>Fecha</span>
+              <span>Tipo</span>
+              <span>Monto</span>
+              <span>Nota</span>
+            </div>
+            {adjustments.slice(0, 8).map((item) => (
+              <div key={item.id} className="balance-history-row">
+                <span>{item.date}</span>
+                <span>{item.type === "income" ? "Ingreso" : "Gasto"}</span>
+                <strong className={item.type === "income" ? "positive" : "negative"}>{item.type === "income" ? "+" : "-"}{formatMoney(item.amount)}</strong>
+                <span>{item.note || "Sin nota"}</span>
+              </div>
+            ))}
+            {!adjustments.length && <p className="empty">Todavía no hay movimientos de balance.</p>}
+          </div>
         </div>
       </section>
     </div>

@@ -538,7 +538,9 @@ select:focus-visible {
 }
 
 .balance-pill {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--soft);
@@ -561,6 +563,16 @@ select:focus-visible {
 
 .balance-pill.negative {
   color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .balance-pill {
+    max-width: 128px;
+    padding: 0.5rem 0.55rem;
+    font-size: 0.72rem;
+    line-height: 1.05;
+    white-space: normal;
+  }
 }
 
 .support-box {
@@ -1759,16 +1771,81 @@ textarea.input {
 }
 
 .modal-panel {
-  width: min(620px, 100%);
+  width: min(760px, 100%);
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
+  color: var(--text);
   box-shadow: var(--shadow);
   padding: 1rem;
 }
 
+.modal-panel h3 {
+  color: var(--text);
+}
+
 .balance-modal .balance-adjust-grid {
   grid-template-columns: 1fr;
+}
+
+.balance-modal-note {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--muted);
+  padding: 0.8rem;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.two-choice {
+  min-height: 38px;
+}
+
+.balance-history {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.balance-history-table {
+  display: grid;
+  gap: 0.45rem;
+  overflow-x: auto;
+}
+
+.balance-history-row {
+  display: grid;
+  grid-template-columns: 110px 90px 130px minmax(180px, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+  min-width: 560px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.balance-history-row.header {
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.balance-history-row .positive {
+  color: var(--green);
+}
+
+.balance-history-row .negative {
+  color: var(--danger);
 }
 
 .modal-actions {
@@ -2245,10 +2322,6 @@ textarea.input {
 
   .vendor-footer-action {
     justify-content: flex-end;
-  }
-
-  .balance-pill {
-    display: inline-flex;
   }
 
   .publish-hero {

@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import clsx from "clsx";
 import {
-  ArrowLeft,
   BarChart3,
   ClipboardList,
   FilePenLine,
@@ -25,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.28.0";
+const APP_VERSION = "v0.29.0";
 
 export function AppLayout({
   children,
@@ -68,8 +67,6 @@ export function AppLayout({
     { route: "/ajustes", label: "Ajustes", icon: Settings },
     { route: "/crear-vendedor", label: "Crear vendedor", icon: UserPlus },
   ] as const;
-  const canGoBack = route !== "/";
-
   function go(routeToOpen: Route) {
     navigate(routeToOpen);
     setMobileMenuOpen(false);
@@ -90,12 +87,6 @@ export function AppLayout({
           <button className="icon-button mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Menu">
             {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
-          {canGoBack && (
-            <button className="back-button" onClick={goBack}>
-              <ArrowLeft size={17} />
-              Volver
-            </button>
-          )}
         </div>
         <div className="header-actions">
           {isLoggedIn && (
