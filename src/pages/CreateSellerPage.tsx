@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import { isValidArgentinaWhatsapp, normalizeArgentinaWhatsapp, whatsappHint } from "../lib/whatsapp";
 
 const provinces = [
-  "CABA", "Buenos Aires", "Catamarca", "Chaco", "Chubut", "Cordoba", "Corrientes", "Entre Rios",
-  "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquen", "Rio Negro",
-  "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucuman",
+  "CABA", "Buenos Aires", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos",
+  "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro",
+  "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
 ];
 
 export type CreateSellerInput = {
@@ -71,13 +71,13 @@ export function CreateSellerPage({
       <p className="eyebrow">Super admin</p>
       <h1 className="panel-title">Crear vendedor</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">
-        Crea el login, el perfil vendedor, su link publico y sus ajustes iniciales desde una sola pantalla.
+        Crea el login, el perfil vendedor, su link público y sus ajustes iniciales desde una sola pantalla.
       </p>
 
       <div className="mt-4 assistant-summary">
-        <span><strong>Email:</strong> sera el usuario con el que el vendedor inicia sesion.</span>
-        <span><strong>Contrasena temporal:</strong> pasasela al vendedor y despues puede cambiarla en Ajustes.</span>
-        <span><strong>Link publico:</strong> el slug define la URL /nombre-vendedor/stock.</span>
+        <span><strong>Email:</strong> será el usuario con el que el vendedor inicia sesión.</span>
+        <span><strong>Contraseña temporal:</strong> pasásela al vendedor y después puede cambiarla en Ajustes.</span>
+        <span><strong>Link público:</strong> el slug define la URL /nombre-vendedor/stock.</span>
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -86,15 +86,15 @@ export function CreateSellerPage({
           <input value={email} onChange={(event) => setEmail(event.target.value)} maxLength={80} placeholder="vendedor@email.com" />
         </label>
         <label className="field">
-          <span>Contrasena temporal</span>
-          <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" minLength={8} maxLength={120} placeholder="Minimo 8 caracteres" />
+          <span>Contraseña temporal</span>
+          <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" minLength={8} maxLength={120} placeholder="Mínimo 8 caracteres" />
         </label>
         <label className="field">
           <span>Nombre visible</span>
           <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={60} placeholder="Nombre del vendedor" />
         </label>
         <label className="field">
-          <span>Slug publico</span>
+          <span>Slug público</span>
           <input value={slug} onChange={(event) => setSlug(event.target.value)} maxLength={32} placeholder={normalizedSlug || "nombre-vendedor"} />
         </label>
         <label className="field">
@@ -111,14 +111,14 @@ export function CreateSellerPage({
           <span>Tiempo activo</span>
           <select value={planValue} onChange={(event) => setPlanValue(event.target.value)}>
             {monthOptions.map((month) => <option key={month} value={month}>{month} {month === 1 ? "mes" : "meses"}</option>)}
-            <option value="lifetime">Pago unico - sin vencimiento</option>
+            <option value="lifetime">Pago único - sin vencimiento</option>
           </select>
         </label>
       </div>
 
       <p className={isValidArgentinaWhatsapp(whatsapp) ? "field-hint" : "field-hint error"}>{whatsappHint(whatsapp)}</p>
-      {password && password.length < 8 && <p className="field-hint error">La contrasena temporal debe tener al menos 8 caracteres.</p>}
-      <p className="field-hint">Link publico: /{normalizedSlug || "slug-vendedor"}/stock</p>
+      {password && password.length < 8 && <p className="field-hint error">La contraseña temporal debe tener al menos 8 caracteres.</p>}
+      <p className="field-hint">Link público: /{normalizedSlug || "slug-vendedor"}/stock</p>
 
       <button className="primary-button mt-4" disabled={!valid || saving} onClick={createSeller}>
         {saving ? "Creando..." : "Crear perfil vendedor"}

@@ -18,6 +18,6 @@ export function isValidArgentinaWhatsapp(input: string) {
 export function whatsappHint(input: string) {
   const normalized = normalizeArgentinaWhatsapp(input);
   if (!normalized) return "Ej: 11 1234 5678, 91112345678 o 5491112345678.";
-  if (!isValidArgentinaWhatsapp(input)) return `Revisalo: quedaria ${normalized}, pero no parece tener 13 digitos.`;
-  return `Se guardara como ${normalized}.`;
+  if (!isValidArgentinaWhatsapp(input)) return `Revisalo: quedaría ${normalized}, pero no parece tener 13 dígitos.`;
+  return `Se guardará como ${normalized}.`;
 }

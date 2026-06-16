@@ -24,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.38.0";
+const APP_VERSION = "v0.39.0";
 
 export function AppLayout({
   children,
@@ -194,7 +194,7 @@ function AppFooter({ navigate }: { navigate: (route: Route) => void }) {
           <strong>Dragon Ball Stock Manager</strong>
         </div>
         <div className="footer-actions donation-actions">
-          <span>Ayudame con una donacion</span>
+          <span>Ayudame con una donación</span>
           <a className="small-button subtle" href="https://cafecito.app/ramitag" target="_blank" rel="noreferrer">Cafecito</a>
           <MercadoPagoButton className="small-button subtle" />
         </div>

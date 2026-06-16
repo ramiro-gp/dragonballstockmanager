@@ -217,7 +217,7 @@ export function StockManagerPage({
     const productToPublish: PublishProductInput = {
       name,
       category: productCategory,
-      description: productDescription.trim() || "Producto publicado sin descripcion.",
+      description: productDescription.trim() || "Producto publicado sin descripción.",
       quantity: Math.max(1, productQuantity),
       reserved: 0,
       price: Math.max(0, productPrice),
@@ -392,7 +392,7 @@ export function StockManagerPage({
               <label className="field"><span>Cantidad</span><input type="number" min={1} value={productQuantity} onChange={(event) => setProductQuantity(Number(event.target.value))} /></label>
               <label className="field"><span>Precio</span><input type="number" min={0} value={productPrice} onChange={(event) => setProductPrice(Number(event.target.value))} /></label>
               <label className="field"><span>Costo de compra</span><input type="number" min={0} value={productPurchaseCost} onChange={(event) => setProductPurchaseCost(Math.max(0, Number(event.target.value)))} /></label>
-              <label className="field product-load-wide"><span>Descripcion</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Ej: expansion completa, incluye caja original, estado general, si faltan o sobran cartas..." maxLength={600} /></label>
+              <label className="field product-load-wide"><span>Descripción</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Ej: expansión completa, incluye caja original, estado general, si faltan o sobran cartas..." maxLength={600} /></label>
               <label className="field"><span>Foto del producto</span><input type="file" accept="image/*" onChange={(event) => setProductImageFile(event.target.files?.[0] ?? null)} /></label>
               <label className="field"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." disabled={Boolean(productImageFile)} /></label>
               <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim() || isPublishing}>

@@ -2191,11 +2191,8 @@ textarea.input {
     gap: 0.35rem;
   }
 
-  .seller-button {
-    min-width: 94px;
-    padding: 0 0.65rem;
-    font-size: 0.76rem;
-    line-height: 1.05;
+  .seller-button.primary-cta {
+    display: none;
   }
 
   .cart-line-page {

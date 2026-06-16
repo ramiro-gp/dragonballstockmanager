@@ -331,13 +331,13 @@ export function App() {
 
   async function changePassword(password: string) {
     if (!supabase) {
-      notify("error", "No hay conexion con Supabase para cambiar la contrasena.");
+      notify("error", "No hay conexión con Supabase para cambiar la contraseña.");
       return false;
     }
 
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
-      notify("error", "No pude cambiar la contrasena.");
+      notify("error", "No pude cambiar la contraseña.");
       return false;
     }
 

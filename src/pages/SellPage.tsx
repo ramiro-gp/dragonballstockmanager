@@ -4,12 +4,12 @@ const sellerContactWhatsapp = import.meta.env.VITE_SELLER_CONTACT_WHATSAPP || "5
 
 export function SellPage() {
   const benefits = [
-    { icon: Link, title: "Link propio", text: "Compartis tu stock con un link simple y cada cliente consulta lo que le falta sin pedirte capturas." },
-    { icon: SearchCheck, title: "Busqueda por lista", text: "El cliente pega sus faltantes y ve rapido que tenes disponible, con variantes y precios." },
-    { icon: PackageCheck, title: "Stock automatico", text: "Publicas cartas o productos y cada venta confirmada se descuenta automaticamente del stock." },
-    { icon: ClipboardCheck, title: "Pedidos en seguimiento", text: "Cada consulta queda como pedido pendiente para reservar, confirmar o cancelar cuando arreglas por WhatsApp." },
-    { icon: WalletCards, title: "Balance claro", text: "Controlas ingresos, gastos, senas y saldos sin tener todo mezclado en papel o chats." },
-    { icon: BarChart3, title: "Graficos de venta", text: "Ves como viene tu movimiento, detectas que se vende mas y ordenas mejor tus compras." },
+    { icon: Link, title: "Link propio", text: "Compartís tu stock con un link simple y cada cliente consulta lo que le falta sin pedirte capturas." },
+    { icon: SearchCheck, title: "Búsqueda por lista", text: "El cliente pega sus faltantes y ve rápido qué tenés disponible, con variantes y precios." },
+    { icon: PackageCheck, title: "Stock automático", text: "Publicás cartas o productos y cada venta confirmada se descuenta automáticamente del stock." },
+    { icon: ClipboardCheck, title: "Pedidos en seguimiento", text: "Cada consulta queda como pedido pendiente para reservar, confirmar o cancelar cuando arreglás por WhatsApp." },
+    { icon: WalletCards, title: "Balance claro", text: "Controlás ingresos, gastos, señas y saldos sin tener todo mezclado en papel o chats." },
+    { icon: BarChart3, title: "Gráficos de venta", text: "Ves cómo viene tu movimiento, detectás qué se vende más y ordenás mejor tus compras." },
   ];
 
   return (
@@ -17,9 +17,9 @@ export function SellPage() {
       <section className="hero-band compact-hero">
         <div>
           <p className="eyebrow">Vendedores</p>
-          <h1 className="hero-title">Sumate como vendedor y converti tu stock en una tienda simple</h1>
+          <h1 className="hero-title">Sumate como vendedor y convertí tu stock en una tienda simple</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-            Realiza ventas que se descuentan automaticamente de tu stock, controla los pedidos con seguimiento, verifica tus ingresos y gastos en graficos de venta y mira el balance de tu cuenta.
+            Realizá ventas que se descuentan automáticamente de tu stock, controlá los pedidos con seguimiento, verificá tus ingresos y gastos en gráficos de venta y mirá el balance de tu cuenta.
           </p>
           <a
             className="primary-button sell-contact"
@@ -47,15 +47,15 @@ export function SellPage() {
         <div className="section-heading pricing-heading">
           <div>
             <p className="eyebrow">Planes</p>
-            <h2>Elegi como queres pagar</h2>
+            <h2>Elegí cómo querés pagar</h2>
           </div>
           <CheckCircle2 size={30} />
         </div>
         <div className="plan-card-grid">
           <PlanCard title="Mensual" price="$3000" text="Ideal para probar la app y mantener tu stock publicado mes a mes." />
-          <PlanCard title="3 meses" price="$7500" text="Menos gestion de pagos y mejor precio por continuidad." />
+          <PlanCard title="3 meses" price="$7500" text="Menos gestión de pagos y mejor precio por continuidad." />
           <PlanCard title="6 meses" price="$13000" text="Para vendedores que ya saben que van a usar la herramienta seguido." />
-          <PlanCard title="Pago unico" price="$25000" text="Cuenta activa para siempre, sin vencimiento mensual." highlighted />
+          <PlanCard title="Pago único" price="$25000" text="Cuenta activa para siempre, sin vencimiento mensual." highlighted />
         </div>
       </section>
     </div>
