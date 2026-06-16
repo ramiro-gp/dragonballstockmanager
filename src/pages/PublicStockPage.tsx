@@ -61,7 +61,7 @@ export function PublicStockPage({
         itemType: "card" as const,
         itemId: item.id,
         sellerId: item.sellerId,
-        label: `Carta ${item.number} · ${kindLabel[item.kind]} ${item.variant}`,
+        label: `Carta ${item.number} - ${kindLabel[item.kind]} ${item.variant}`,
         unitPrice: item.price,
         quantity: 1,
         maxQuantity: availableQuantity(item),
@@ -74,6 +74,11 @@ export function PublicStockPage({
   const visibleRows = results.slice((cardPage - 1) * cardPageSize, cardPage * cardPageSize);
   const visibleProducts = products.slice((productPage - 1) * productPageSize, productPage * productPageSize);
   const cardsTotal = viewMode === "cards" ? grouped.length : results.length;
+
+  function addAllFound() {
+    addManyToCart(massAddLines);
+    if (massAddLines.length) navigate("/carrito");
+  }
 
   return (
     <div className="space-y-5">
@@ -90,11 +95,9 @@ export function PublicStockPage({
             <ShieldCheck size={22} />
             <span>Stock visible: {seller.name}</span>
           </div>
-          {seller.location && (
-            <small><MapPin size={14} /> Ubicación: {seller.location}</small>
-          )}
+          {seller.location && <small><MapPin size={14} /> Ubicación: {seller.location}</small>}
           {seller.shippingEnabled && (
-            <small><Truck size={14} /> Realiza envíos con {seller.shippingCompanies.join(", ")}.</small>
+            <small><Truck size={14} /> Realiza envíos con {seller.shippingCompanies.length ? seller.shippingCompanies.join(", ") : "correo a coordinar"}.</small>
           )}
         </div>
       </div>
@@ -109,8 +112,8 @@ export function PublicStockPage({
         </div>
         <div className="search-grid">
           <div className="filter-group">
-            <div className="filter-group-header"><span>Coleccion</span></div>
-            <div className="view-toggle collection-toggle" aria-label="Coleccion">
+            <div className="filter-group-header"><span>Colección</span></div>
+            <div className="view-toggle collection-toggle" aria-label="Colección">
               <button className={clsx(collection === "cromeros" && "active")} onClick={() => setCollection("cromeros")}>Cromeros</button>
               <button className={clsx(collection === "leyenda" && "active")} onClick={() => setCollection("leyenda")}>Leyenda</button>
             </div>
@@ -125,23 +128,12 @@ export function PublicStockPage({
               placeholder="Ej: 1110, 1275, 504F"
             />
           </label>
-          <MultiFilter
-            title="Filtrar por expansion"
-            options={SEARCH_FILTERS.expansions.filter((item) => item !== "todas")}
-            selected={expansions}
-            setSelected={(next) => { setExpansions(next); setCardPage(1); }}
-          />
-          <MultiFilter
-            title="Filtrar por color variante"
-            options={colorVariantOptions}
-            selected={variants}
-            setSelected={(next) => { setVariants(next); setCardPage(1); }}
-            showSwatches
-          />
+          <MultiFilter title="Filtrar por expansión" options={SEARCH_FILTERS.expansions.filter((item) => item !== "todas")} selected={expansions} setSelected={(next) => { setExpansions(next); setCardPage(1); }} />
+          <MultiFilter title="Filtrar por color variante" options={colorVariantOptions} selected={variants} setSelected={(next) => { setVariants(next); setCardPage(1); }} showSwatches />
         </div>
         <div className="search-actions">
           {canBuy ? (
-            <button className="secondary-button" onClick={() => addManyToCart(massAddLines)} disabled={!massAddLines.length}>
+            <button className="secondary-button" onClick={addAllFound} disabled={!massAddLines.length}>
               <Wand2 size={18} />
               Agregar todos los encontrados al carrito
             </button>
@@ -167,9 +159,7 @@ export function PublicStockPage({
 
       {viewMode === "cards" ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {visibleCards.map((items) => (
-            <CardResult key={items[0].number} items={items} addToCart={addToCart} canBuy={canBuy} />
-          ))}
+          {visibleCards.map((items) => <CardResult key={items[0].number} items={items} addToCart={addToCart} canBuy={canBuy} />)}
         </div>
       ) : (
         <div className="card-table">
@@ -197,7 +187,7 @@ export function PublicStockPage({
                     itemType: "card",
                     itemId: item.id,
                     sellerId: item.sellerId,
-                    label: `Carta ${item.number} · ${kindLabel[item.kind]} ${item.variant}`,
+                    label: `Carta ${item.number} - ${kindLabel[item.kind]} ${item.variant}`,
                     unitPrice: item.price,
                     quantity: 1,
                     maxQuantity: availableQuantity(item),
@@ -212,6 +202,7 @@ export function PublicStockPage({
           ))}
         </div>
       )}
+      {cardsTotal === 0 && <p className="empty">No hay cartas con esos filtros.</p>}
       <Pagination page={cardPage} pageSize={cardPageSize} total={cardsTotal} onPageChange={setCardPage} />
 
       <div className="section-heading">
@@ -219,10 +210,9 @@ export function PublicStockPage({
         <span>{products.length} publicados</span>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        {visibleProducts.map((product) => (
-          <ProductCard key={product.id} product={product} addToCart={addToCart} canBuy={canBuy} />
-        ))}
+        {visibleProducts.map((product) => <ProductCard key={product.id} product={product} addToCart={addToCart} canBuy={canBuy} />)}
       </div>
+      {!products.length && <p className="empty">No hay otros productos publicados.</p>}
       <Pagination page={productPage} pageSize={productPageSize} total={products.length} onPageChange={setProductPage} />
     </div>
   );
@@ -247,17 +237,12 @@ function MultiFilter({
 
   useEffect(() => {
     if (!open) return;
-
     function closeOnOutsideClick(event: PointerEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
     }
-
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
     }
-
     document.addEventListener("pointerdown", closeOnOutsideClick);
     document.addEventListener("keydown", closeOnEscape);
     return () => {

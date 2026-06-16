@@ -810,30 +810,6 @@ export function App() {
         return true;
       }
 
-      const { data } = await supabase
-        .from("sales")
-        .insert({
-          seller_id: sale.sellerId,
-          customer_name: sale.customerName,
-          customer_whatsapp: sale.customerWhatsapp,
-          customer_note: sale.note,
-          status: toSupabaseStatus(sale.status),
-          stock_applied: false,
-          total_ars: saleTotal(sale),
-        })
-        .select("id, seller_id, customer_name, customer_whatsapp, customer_note, status, stock_applied, total_ars, created_at")
-        .single();
-
-      if (data) {
-        const saleId = data.id;
-        const rows = sale.lines.map((line) => saleLineToSupabaseInsert(saleId, sale.sellerId, line));
-        const { error: linesError } = rows.length ? await supabase.from("sale_lines").insert(rows) : { error: null };
-        if (linesError) return false;
-        await loadSellerSalesFromSupabase(sale.sellerId);
-        setCart([]);
-        return true;
-      }
-
       return false;
     }
 
