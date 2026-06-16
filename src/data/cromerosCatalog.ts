@@ -21,6 +21,9 @@ export type VariantDraft = {
   price: number;
 };
 
+export const CROMEROS_MIN_CARD_NUMBER = 1;
+export const CROMEROS_MAX_CARD_NUMBER = 1936;
+
 export const CROMEROS_EXPANSIONS: ExpansionRule[] = [
   { label: "Expansión 1", from: 1, to: 129 },
   { label: "Expansión 2", from: 130, to: 265 },
@@ -41,7 +44,7 @@ export const CROMEROS_EXPANSIONS: ExpansionRule[] = [
 ];
 
 const holographicByExpansion: Record<string, number[]> = {
-  "Personajes": [816, 817, 818, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 829, 830, 831, 832, 833, 834, 835, 836, 837, 838, 839, 840, 841, 842, 843, 844, 845, 846, 847, 848, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 868, 869, 870, 871, 872, 880, 881, 882, 883, 884, 887, 892, 893, 894, 895, 896, 904, 905, 906, 907, 908, 916, 917, 918, 919, 920, 928, 929, 930, 931, 932, 940, 941, 942, 943, 944],
+  Personajes: [816, 817, 818, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 829, 830, 831, 832, 833, 834, 835, 836, 837, 838, 839, 840, 841, 842, 843, 844, 845, 846, 847, 848, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 868, 869, 870, 871, 872, 880, 881, 882, 883, 884, 887, 892, 893, 894, 895, 896, 904, 905, 906, 907, 908, 916, 917, 918, 919, 920, 928, 929, 930, 931, 932, 940, 941, 942, 943, 944],
   "Expansión 7": [953, 954, 957, 958, 963, 968, 969, 970, 972, 973, 975, 977, 984, 988, 989, 991, 993, 994, 997, 1006, 1008, 1010, 1019, 1027, 1028, 1029, 1036, 1037, 1038, 1051, 1053, 1055, 1056, 1058, 1065, 1069, 1076, 1078, 1080, 1084],
   "Guerreros Legendarios 1": [1088, 1090, 1091, 1092, 1093, 1094, 1098, 1099, 1110, 1111, 1112, 1113, 1123, 1125, 1126, 1127, 1129, 1131, 1134, 1146, 1147, 1148, 1149, 1157, 1161, 1162, 1167, 1169, 1170, 1181, 1182, 1183, 1184, 1197, 1199, 1204, 1207, 1214, 1222, 1223],
   "Guerreros Legendarios 2": [1225, 1226, 1236, 1239, 1244, 1245, 1246, 1248, 1249, 1251, 1254, 1259, 1260, 1261, 1262, 1263, 1272, 1275, 1276, 1278, 1280, 1284, 1291, 1298, 1299, 1309, 1320, 1322, 1326, 1329, 1334, 1338, 1339, 1341, 1348, 1350, 1354, 1355, 1359],
@@ -53,7 +56,7 @@ const holographicByExpansion: Record<string, number[]> = {
 };
 
 const variantRules: Record<string, VariantRule> = {
-  "Personajes": {
+  Personajes: {
     kinds: ["comun", "fluor", "holo"],
     fluor: ["Fluor"],
     holo: ["Dorado", "Plateado", "Dorado opaco", "Plateado opaco", "Rojo", "Azul", "Verde", "Violeta", "Amarillo", "Bronce", "Patrones", "Arcoiris", "Tornasolado"],
@@ -99,6 +102,11 @@ const variantRules: Record<string, VariantRule> = {
     holo: ["Verde", "Violeta", "Celeste", "Rojo", "Plateado", "Azul", "Patrones"],
   },
 };
+
+export function isKnownCromerosCardNumber(cardNumber: string) {
+  const number = Number(cardNumber.replace(/\D/g, ""));
+  return CROMEROS_EXPANSIONS.some((item) => number >= item.from && number <= item.to);
+}
 
 export function getCromerosExpansion(cardNumber: string) {
   const number = Number(cardNumber.replace(/\D/g, ""));

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Layers3, Package, PackagePlus } from "lucide-react";
-import { getColorOptions, getCromerosExpansion, getDefaultKind, getKindOptions, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
+import { getColorOptions, getCromerosExpansion, getDefaultKind, getKindOptions, isKnownCromerosCardNumber, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product, PublishCardInput, PublishProductInput, SellerSettings } from "../lib/types";
 import { groupNumbers, parseCardList, parseRange } from "../lib/helpers";
 
@@ -51,16 +51,18 @@ export function StockManagerPage({
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
 
   const parsedCards = useMemo(() => loadMode === "list" ? parseCardList(cardList) : parseRange(from, to, except), [cardList, except, from, loadMode, to]);
+  const invalidCardNumbers = useMemo(() => uniqueSortedNumbers(parsedCards.filter((number) => !isKnownCromerosCardNumber(number))), [parsedCards]);
+  const validParsedCards = useMemo(() => parsedCards.filter((number) => isKnownCromerosCardNumber(number)), [parsedCards]);
   const variantRows = useMemo(() => {
     const occurrences = new Map<string, number>();
-    return parsedCards.flatMap((number) => {
+    return validParsedCards.flatMap((number) => {
       if (!needsVariantChoice(number)) return [];
       const occurrence = (occurrences.get(number) ?? 0) + 1;
       occurrences.set(number, occurrence);
       return [{ number, key: `${number}-${occurrence}` }];
     });
-  }, [parsedCards]);
-  const commonGroups = useMemo(() => groupNumbers(parsedCards.filter((number) => !needsVariantChoice(number))), [parsedCards]);
+  }, [validParsedCards]);
+  const commonGroups = useMemo(() => groupNumbers(validParsedCards.filter((number) => !needsVariantChoice(number))), [validParsedCards]);
 
   useEffect(() => {
     setVariantDrafts((current) => {
@@ -120,6 +122,10 @@ export function StockManagerPage({
     if (!totalToPublish) return;
     setPublishedMessage("");
     setPublishError("");
+    if (invalidCardNumbers.length) {
+      setPublishError(`No publiqué nada porque hay números fuera del catálogo Cromeros: ${formatInvalidNumbers(invalidCardNumbers)}.`);
+      return;
+    }
     const rowsToPublish: PublishCardInput[] = [
       ...Object.entries(commonGroups).map(([number, quantity]) => ({
         number,
@@ -319,7 +325,13 @@ export function StockManagerPage({
               <span>Rango: usá Desde/Hasta y cargá excepciones si faltan cartas.</span>
               <span>Las cartas con variantes aparecen abajo para completar color y precio.</span>
               <span>{totalCommonQuantity} comunes, {variantRows.length} variantes, {totalToPublish} total.</span>
+              <span>Catálogo Cromeros: cartas 1 a 1936, sin 404 a 407.</span>
             </div>
+            {invalidCardNumbers.length > 0 && (
+              <p className="form-error mt-3">
+                Revisá estos números: {formatInvalidNumbers(invalidCardNumbers)}. No existen en el catálogo Cromeros.
+              </p>
+            )}
           </aside>
 
           <section className="tool-surface">
@@ -359,7 +371,7 @@ export function StockManagerPage({
             <div className="publish-sheet-footer">
               {publishedMessage && <span className="save-feedback">{publishedMessage}</span>}
               {publishError && <span className="save-feedback error">{publishError}</span>}
-              <button className="primary-button" onClick={publishCards} disabled={!totalToPublish || isPublishing}>
+              <button className="primary-button" onClick={publishCards} disabled={!totalToPublish || invalidCardNumbers.length > 0 || isPublishing}>
                 <PackagePlus size={18} />
                 {isPublishing ? "Publicando..." : `Publicar ${totalToPublish} cartas`}
               </button>
@@ -449,4 +461,14 @@ function kindText(kind: CardKind) {
   if (kind === "comun") return "Común";
   if (kind === "fluor") return "Fluor";
   return "Holo";
+}
+
+function uniqueSortedNumbers(numbers: string[]) {
+  return Array.from(new Set(numbers)).sort((a, b) => Number(a.replace(/\D/g, "")) - Number(b.replace(/\D/g, "")));
+}
+
+function formatInvalidNumbers(numbers: string[]) {
+  const visible = numbers.slice(0, 12).join(", ");
+  const remaining = numbers.length - 12;
+  return remaining > 0 ? `${visible} y ${remaining} más` : visible;
 }
