@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Save, Trash2 } from "lucide-react";
-import { getColorOptions } from "../data/cromerosCatalog";
+import { getColorOptions, getKindOptions, isKnownCromerosCardNumber } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product } from "../lib/types";
 import { formatMoney, kindLabel, parseCardList } from "../lib/helpers";
 import { SEARCH_FILTERS } from "../lib/limits";
@@ -67,6 +67,7 @@ export function StockManagementPage({
   const sortedProducts = useMemo(() => [...draftProducts].sort((a, b) => a.name.localeCompare(b.name)), [draftProducts]);
   const selectedVisibleIds = visibleStock.map((item) => item.id);
   const allVisibleSelected = selectedVisibleIds.length > 0 && selectedVisibleIds.every((id) => selectedCardIds.includes(id));
+  const invalidStockNumbers = useMemo(() => uniqueSortedNumbers(draftStock.filter((item) => !isKnownCromerosCardNumber(item.number)).map((item) => item.number)), [draftStock]);
 
   function updateCard(itemId: string, patch: Partial<Pick<CardStock, "quantity" | "price" | "kind" | "variant">>) {
     setSavedMessage("");
@@ -74,7 +75,10 @@ export function StockManagementPage({
       current.map((item) => {
         if (item.id !== itemId) return item;
         const quantity = patch.quantity === undefined ? item.quantity : Math.max(item.reserved, patch.quantity);
-        return { ...item, ...patch, quantity };
+        const kind = patch.kind ?? item.kind;
+        const colorOptions = getColorOptions(item.number, kind);
+        const variant = patch.kind && patch.variant === undefined ? colorOptions[0] ?? item.variant : patch.variant ?? item.variant;
+        return { ...item, ...patch, kind, variant, quantity };
       }),
     );
   }
@@ -118,6 +122,10 @@ export function StockManagementPage({
   }
 
   async function saveCardChanges() {
+    if (invalidStockNumbers.length) {
+      setSavedMessage(`No guardé cambios. Hay cartas fuera del catálogo Cromeros: ${formatInvalidNumbers(invalidStockNumbers)}.`);
+      return;
+    }
     setSavingCards(true);
     const fallbackRows = draftStock.map((item) => ({ ...item, sellerId }));
     const savedRows = onSaveCards ? await onSaveCards(fallbackRows) : fallbackRows;
@@ -179,6 +187,11 @@ export function StockManagementPage({
         <div className="metric"><div><p>Valor cargado</p><strong>{formatMoney(stockValue)}</strong></div></div>
       </section>
       {savedMessage && <p className="save-feedback">{savedMessage}</p>}
+      {invalidStockNumbers.length > 0 && (
+        <p className="save-feedback error">
+          Hay cartas fuera del catálogo Cromeros: {formatInvalidNumbers(invalidStockNumbers)}. Corregí esas publicaciones antes de guardar.
+        </p>
+      )}
 
       <section className="tool-surface">
         <div className="section-heading">
@@ -215,7 +228,7 @@ export function StockManagementPage({
               <RotateCcw size={16} />
               Descartar
             </button>
-            <button className="primary-button compact" onClick={saveCardChanges} disabled={!cardsDirty || savingCards}>
+            <button className="primary-button compact" onClick={saveCardChanges} disabled={!cardsDirty || invalidStockNumbers.length > 0 || savingCards}>
               <Save size={16} />
               {savingCards ? "Guardando..." : "Guardar cambios"}
             </button>
@@ -240,9 +253,7 @@ export function StockManagementPage({
               </label>
               <strong>{item.number}</strong>
               <select value={item.kind} onChange={(event) => updateCard(item.id, { kind: event.target.value as CardKind })} aria-label={`Variante carta ${item.number}`}>
-                <option value="comun">{kindLabel.comun}</option>
-                <option value="fluor">{kindLabel.fluor}</option>
-                <option value="holo">{kindLabel.holo}</option>
+                {getCardKindOptions(item).map((kind) => <option key={kind} value={kind}>{kindLabel[kind]}</option>)}
               </select>
               <select value={item.variant} onChange={(event) => updateCard(item.id, { variant: event.target.value })}>
                 {getCardColorOptions(item).map((variant) => <option key={variant} value={variant}>{variant}</option>)}
@@ -309,4 +320,19 @@ export function StockManagementPage({
 function getCardColorOptions(item: CardStock) {
   const options = getColorOptions(item.number, item.kind);
   return options.includes(item.variant) ? options : [item.variant, ...options];
+}
+
+function getCardKindOptions(item: CardStock) {
+  const options = getKindOptions(item.number);
+  return options.includes(item.kind) ? options : [item.kind, ...options];
+}
+
+function uniqueSortedNumbers(numbers: string[]) {
+  return Array.from(new Set(numbers)).sort((a, b) => Number(a.replace(/\D/g, "")) - Number(b.replace(/\D/g, "")));
+}
+
+function formatInvalidNumbers(numbers: string[]) {
+  const visible = numbers.slice(0, 12).join(", ");
+  const remaining = numbers.length - 12;
+  return remaining > 0 ? `${visible} y ${remaining} más` : visible;
 }

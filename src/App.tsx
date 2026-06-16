@@ -668,12 +668,13 @@ export function App() {
       }
     }
 
+    const catalogByNumber = await loadCromerosCatalogByNumber(rows.map((row) => row.number));
     const rowsToInsert = rows
       .map((row) => ({
         id: row.id,
         seller_id: currentSeller.id,
         collection: "cromeros",
-        catalog_card_id: row.catalogCardId ?? null,
+        catalog_card_id: row.catalogCardId ?? catalogByNumber.get(Number.parseInt(row.number, 10)) ?? null,
         card_number: Number.parseInt(row.number, 10),
         expansion: row.expansion,
         variant_type: row.kind,
