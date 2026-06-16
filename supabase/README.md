@@ -7,10 +7,13 @@ Run these files in Supabase SQL Editor:
 1. `security_hardening_v1.sql`
 2. `admin_tools_v1.sql`
 3. `catalog_master_v1.sql`
+4. `catalog_master_fix_404_407.sql` if you already ran the first catalog migration before June 16, 2026.
 
 Paste each file completely in a new query and run it.
 
 `catalog_master_v1.sql` creates the master Cromeros catalog and links current `stock_cards` rows when possible. It is additive: it does not delete stock, products, sales, or seller data.
+
+`catalog_master_fix_404_407.sql` inserts missing hidden cards 404-407 for projects that already ran the first catalog migration.
 
 ## Edge Functions
 

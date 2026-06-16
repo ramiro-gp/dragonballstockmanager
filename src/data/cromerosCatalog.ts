@@ -28,7 +28,7 @@ export const CROMEROS_EXPANSIONS: ExpansionRule[] = [
   { label: "Expansión 1", from: 1, to: 129 },
   { label: "Expansión 2", from: 130, to: 265 },
   { label: "Expansión 3", from: 266, to: 401 },
-  { label: "Cartas ocultas", from: 402, to: 403 },
+  { label: "Cartas ocultas", from: 402, to: 407 },
   { label: "Expansión 4", from: 408, to: 543 },
   { label: "Expansión 5", from: 544, to: 679 },
   { label: "Expansión 6", from: 680, to: 815 },

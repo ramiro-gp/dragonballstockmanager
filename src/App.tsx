@@ -351,7 +351,7 @@ export function App() {
     const [{ data: cardRows }, { data: productRows }] = await Promise.all([
       supabase
         .from("stock_cards")
-        .select("id, seller_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
+        .select("id, seller_id, catalog_card_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
         .eq("seller_id", sellerId)
         .order("card_number", { ascending: true }),
       supabase
@@ -518,7 +518,7 @@ export function App() {
 
     const { data: existingRows } = await supabase
       .from("stock_cards")
-      .select("id, card_number, expansion, variant_type, color_variant, quantity")
+      .select("id, catalog_card_id, card_number, expansion, variant_type, color_variant, quantity")
       .eq("seller_id", currentSeller.id)
       .eq("collection", "cromeros");
 
@@ -528,6 +528,7 @@ export function App() {
         row,
       ]),
     );
+    const catalogByNumber = await loadCromerosCatalogByNumber(aggregated.map((row) => row.number));
 
     const inserts = [];
     const updates = [];
@@ -536,12 +537,14 @@ export function App() {
       const cardNumber = Number.parseInt(row.number, 10);
       if (!Number.isFinite(cardNumber)) continue;
       const existing = existingByKey.get([row.number, row.expansion, row.kind, row.variant].join("|"));
+      const catalogCardId = row.catalogCardId ?? catalogByNumber.get(cardNumber) ?? null;
 
       if (existing?.id) {
         updates.push(
           supabase
             .from("stock_cards")
             .update({
+              ...(!existing.catalog_card_id && catalogCardId ? { catalog_card_id: catalogCardId } : {}),
               quantity: (existing.quantity ?? 0) + row.quantity,
               price_ars: row.price,
             })
@@ -553,6 +556,7 @@ export function App() {
       inserts.push({
         seller_id: currentSeller.id,
         collection: "cromeros",
+        catalog_card_id: catalogCardId,
         card_number: cardNumber,
         expansion: row.expansion,
         variant_type: row.kind,
@@ -568,7 +572,7 @@ export function App() {
 
     const { data: cardRows } = await supabase
       .from("stock_cards")
-      .select("id, seller_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
+      .select("id, seller_id, catalog_card_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
       .eq("seller_id", currentSeller.id)
       .order("card_number", { ascending: true });
 
@@ -578,6 +582,22 @@ export function App() {
       ...nextCards,
     ]);
     return nextCards;
+  }
+
+  async function loadCromerosCatalogByNumber(numbers: string[]) {
+    if (!supabase) return new Map<number, string>();
+    const cardNumbers = Array.from(new Set(numbers.map((number) => Number.parseInt(number, 10)).filter(Number.isFinite)));
+    if (!cardNumbers.length) return new Map<number, string>();
+
+    const { data, error } = await supabase
+      .from("catalog_cards")
+      .select("id, card_number")
+      .eq("collection", "cromeros")
+      .eq("print_key", "base")
+      .in("card_number", cardNumbers);
+
+    if (error || !data) return new Map<number, string>();
+    return new Map(data.map((row) => [row.card_number as number, row.id as string]));
   }
 
   async function publishProductToSupabase(product: PublishProductInput) {
@@ -653,6 +673,7 @@ export function App() {
         id: row.id,
         seller_id: currentSeller.id,
         collection: "cromeros",
+        catalog_card_id: row.catalogCardId ?? null,
         card_number: Number.parseInt(row.number, 10),
         expansion: row.expansion,
         variant_type: row.kind,
@@ -673,7 +694,7 @@ export function App() {
 
     const { data: cardRows, error: refreshError } = await supabase
       .from("stock_cards")
-      .select("id, seller_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
+      .select("id, seller_id, catalog_card_id, card_number, expansion, variant_type, color_variant, quantity, reserved, price_ars")
       .eq("seller_id", currentSeller.id)
       .order("card_number", { ascending: true });
     if (refreshError) {
@@ -1246,6 +1267,7 @@ function mapSupabaseSeller(row: {
 function mapSupabaseCard(row: {
   id: string;
   seller_id: string;
+  catalog_card_id?: string | null;
   card_number: number;
   expansion: string;
   variant_type: string;
@@ -1257,6 +1279,7 @@ function mapSupabaseCard(row: {
   return {
     id: row.id,
     sellerId: row.seller_id,
+    catalogCardId: row.catalog_card_id ?? null,
     number: String(row.card_number),
     expansion: row.expansion,
     kind: row.variant_type as CardKind,

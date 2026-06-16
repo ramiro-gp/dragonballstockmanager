@@ -66,6 +66,7 @@ export type BalanceAdjustment = {
 export type CardStock = {
   id: string;
   sellerId: string;
+  catalogCardId?: string | null;
   number: string;
   expansion: string;
   kind: CardKind;
@@ -77,6 +78,7 @@ export type CardStock = {
 };
 
 export type PublishCardInput = {
+  catalogCardId?: string | null;
   number: string;
   expansion: string;
   kind: CardKind;

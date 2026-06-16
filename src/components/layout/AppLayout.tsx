@@ -24,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.41.0";
+const APP_VERSION = "v0.42.0";
 
 export function AppLayout({
   children,

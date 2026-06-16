@@ -325,7 +325,7 @@ export function StockManagerPage({
               <span>Rango: usá Desde/Hasta y cargá excepciones si faltan cartas.</span>
               <span>Las cartas con variantes aparecen abajo para completar color y precio.</span>
               <span>{totalCommonQuantity} comunes, {variantRows.length} variantes, {totalToPublish} total.</span>
-              <span>Catálogo Cromeros: cartas 1 a 1936, sin 404 a 407.</span>
+              <span>Catálogo Cromeros: cartas 1 a 1936.</span>
             </div>
             {invalidCardNumbers.length > 0 && (
               <p className="form-error mt-3">

@@ -64,7 +64,7 @@ from (
   select generate_series(1, 129) as n, 'Expansión 1' as expansion
   union all select generate_series(130, 265), 'Expansión 2'
   union all select generate_series(266, 401), 'Expansión 3'
-  union all select generate_series(402, 403), 'Cartas ocultas'
+  union all select generate_series(402, 407), 'Cartas ocultas'
   union all select generate_series(408, 543), 'Expansión 4'
   union all select generate_series(544, 679), 'Expansión 5'
   union all select generate_series(680, 815), 'Expansión 6'
