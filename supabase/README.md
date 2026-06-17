@@ -18,6 +18,12 @@ Paste each file completely in a new query and run it.
 
 `stock_catalog_validation_v1.sql` makes Supabase reject invalid card stock writes and auto-fill `catalog_card_id` when possible.
 
+## Optional resets
+
+Run `reset_operational_data_v1.sql` only when you intentionally want to start the app with a clean operational database.
+
+It keeps Auth users, owner seller profiles, owner settings, and the Cromeros master catalog. It deletes seller stock, products, sales, sale lines, payments, balance adjustments, and non-owner seller profiles.
+
 ## Edge Functions
 
 Deploy the seller creation function:

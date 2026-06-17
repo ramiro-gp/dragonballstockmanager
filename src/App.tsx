@@ -34,11 +34,11 @@ const STORAGE_KEYS = {
   theme: "dbsm.theme",
   sidebarCollapsed: "dbsm.sidebarCollapsed",
   currentSeller: "dbsm.currentSeller",
-  stock: "dbsm.stock",
-  products: "dbsm.products",
-  sales: "dbsm.sales",
-  balanceAdjustments: "dbsm.balanceAdjustments",
-  cart: "dbsm.cart",
+  stock: "dbsm.stock.v2",
+  products: "dbsm.products.v2",
+  sales: "dbsm.sales.v2",
+  balanceAdjustments: "dbsm.balanceAdjustments.v2",
+  cart: "dbsm.cart.v2",
 } as const;
 
 export function App() {
