@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Save, Trash2 } from "lucide-react";
 import { getColorOptions, getKindOptions, isKnownCromerosCardNumber } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product } from "../lib/types";
-import { formatMoney, kindLabel, parseCardList } from "../lib/helpers";
+import { availableQuantity, formatMoney, kindLabel, parseCardList } from "../lib/helpers";
 import { SEARCH_FILTERS } from "../lib/limits";
 import { cleanPlainText, sanitizeExternalImageUrl } from "../lib/security";
 import { sortCardStock } from "../lib/sorting";
@@ -55,6 +55,9 @@ export function StockManagementPage({
   const cardsDirty = useMemo(() => JSON.stringify(draftStock) !== JSON.stringify(stock), [draftStock, stock]);
   const productsDirty = useMemo(() => JSON.stringify(draftProducts) !== JSON.stringify(products), [draftProducts, products]);
   const stockValue = draftStock.reduce((sum, item) => sum + item.quantity * item.price, 0) + draftProducts.reduce((sum, item) => sum + item.quantity * item.price, 0);
+  const availableCards = draftStock.map((item) => availableQuantity(item)).filter((available) => available > 0);
+  const availableCardItems = availableCards.length;
+  const availableCardUnits = availableCards.reduce((sum, available) => sum + available, 0);
   const queryNumbers = parseCardList(cardQuery);
   const visibleStock = useMemo(
     () => [...draftStock]
@@ -189,7 +192,8 @@ export function StockManagementPage({
       </section>
 
       <section className="stock-summary-grid">
-        <div className="metric"><div><p>Cartas publicadas</p><strong>{draftStock.length}</strong></div></div>
+        <div className="metric"><div><p>Cartas publicadas (sin repetir)</p><strong>{availableCardItems}</strong></div></div>
+        <div className="metric"><div><p>Cartas publicadas (con repetidas)</p><strong>{availableCardUnits}</strong></div></div>
         <div className="metric"><div><p>Productos publicados</p><strong>{draftProducts.length}</strong></div></div>
         <div className="metric"><div><p>Valor cargado</p><strong>{formatMoney(stockValue)}</strong></div></div>
       </section>
