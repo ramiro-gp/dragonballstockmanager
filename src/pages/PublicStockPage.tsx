@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { Check, ChevronDown, Filter, LayoutGrid, List, MapPin, Plus, ShoppingCart, ShieldCheck, Truck, Wand2 } from "lucide-react";
 import type { Route } from "../app/routes";
 import type { CardStock, CartLine, Product, Seller } from "../lib/types";
-import { availableQuantity, cartTotal, formatMoney, kindLabel, parseCardList } from "../lib/helpers";
+import { availableProductQuantity, availableQuantity, cartTotal, formatMoney, kindLabel, parseCardList } from "../lib/helpers";
 import { APP_LIMITS, SEARCH_FILTERS } from "../lib/limits";
 import { Pagination } from "../components/shared/Pagination";
 import { CardResult } from "../components/cards/CardResult";
@@ -72,7 +72,8 @@ export function PublicStockPage({
   const productPageSize = 6;
   const visibleCards = grouped.slice((cardPage - 1) * cardPageSize, cardPage * cardPageSize);
   const visibleRows = results.slice((cardPage - 1) * cardPageSize, cardPage * cardPageSize);
-  const visibleProducts = products.slice((productPage - 1) * productPageSize, productPage * productPageSize);
+  const availableProducts = products.filter((product) => availableProductQuantity(product) > 0);
+  const visibleProducts = availableProducts.slice((productPage - 1) * productPageSize, productPage * productPageSize);
   const cardsTotal = viewMode === "cards" ? grouped.length : results.length;
 
   function addAllFound() {
@@ -207,13 +208,13 @@ export function PublicStockPage({
 
       <div className="section-heading">
         <h3>Otros productos</h3>
-        <span>{products.length} publicados</span>
+        <span>{availableProducts.length} publicados</span>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {visibleProducts.map((product) => <ProductCard key={product.id} product={product} addToCart={addToCart} canBuy={canBuy} />)}
       </div>
-      {!products.length && <p className="empty">No hay otros productos publicados.</p>}
-      <Pagination page={productPage} pageSize={productPageSize} total={products.length} onPageChange={setProductPage} />
+      {!availableProducts.length && <p className="empty">No hay otros productos publicados.</p>}
+      <Pagination page={productPage} pageSize={productPageSize} total={availableProducts.length} onPageChange={setProductPage} />
     </div>
   );
 }

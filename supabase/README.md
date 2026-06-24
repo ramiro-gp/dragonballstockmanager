@@ -9,6 +9,7 @@ Run these files in Supabase SQL Editor:
 3. `catalog_master_v1.sql`
 4. `catalog_master_fix_404_407.sql` if you already ran the first catalog migration before June 16, 2026.
 5. `stock_catalog_validation_v1.sql`
+6. `stock_reserved_sold_v1.sql`
 
 Paste each file completely in a new query and run it.
 
@@ -17,6 +18,8 @@ Paste each file completely in a new query and run it.
 `catalog_master_fix_404_407.sql` inserts missing hidden cards 404-407 for projects that already ran the first catalog migration.
 
 `stock_catalog_validation_v1.sql` makes Supabase reject invalid card stock writes and auto-fill `catalog_card_id` when possible.
+
+`stock_reserved_sold_v1.sql` makes reserved sales reserve stock and confirmed sales decrement stock permanently, without rewriting existing rows.
 
 ## Optional resets
 

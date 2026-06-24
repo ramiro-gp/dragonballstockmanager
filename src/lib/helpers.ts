@@ -1,4 +1,4 @@
-import type { CardKind, CardStock, CartLine, Sale, SaleStatus } from "./types";
+import type { CardKind, CardStock, CartLine, Product, Sale, SaleStatus } from "./types";
 
 export const formatMoney = (value: number) =>
   new Intl.NumberFormat("es-AR", {
@@ -60,6 +60,10 @@ export function availableQuantity(item: CardStock) {
   return Math.max(0, item.quantity - item.reserved);
 }
 
+export function availableProductQuantity(item: Product) {
+  return Math.max(0, item.quantity - item.reserved);
+}
+
 export function saleTotal(sale: Sale) {
   return sale.lines.reduce((sum, line) => sum + line.finalUnitPrice * line.quantity, 0);
 }
@@ -73,7 +77,13 @@ export function paidTotal(sale: Sale) {
 }
 
 export function shouldApplyStock(status: SaleStatus) {
-  return status === "reservada" || status === "confirmada";
+  return saleInventoryState(status) !== "none";
+}
+
+export function saleInventoryState(status: SaleStatus) {
+  if (status === "reservada") return "reserved";
+  if (status === "confirmada") return "sold";
+  return "none";
 }
 
 export function buildWhatsappUrl(phone: string, sellerName: string, order: string, lines: CartLine[], note: string) {

@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
-import { availableQuantity, cartTotal, formatMoney, saleTotal, shouldApplyStock } from "./lib/helpers";
+import { availableProductQuantity, availableQuantity, cartTotal, formatMoney, saleInventoryState, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { compressProductImage } from "./lib/images";
 import { supabase } from "./lib/supabase";
 import type { BalanceAdjustment, CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
@@ -66,7 +66,7 @@ export function App() {
   const sellerStock = stock.filter((item) => item.sellerId === currentSeller.id);
   const sellerProducts = products.filter((item) => item.sellerId === currentSeller.id);
   const publicSellerStock = publicSeller ? stock.filter((item) => item.sellerId === publicSeller.id && availableQuantity(item) > 0) : [];
-  const publicSellerProducts = publicSeller ? products.filter((item) => item.sellerId === publicSeller.id && item.quantity > 0) : [];
+  const publicSellerProducts = publicSeller ? products.filter((item) => item.sellerId === publicSeller.id && availableProductQuantity(item) > 0) : [];
   const sellerSales = sales.filter((sale) => sale.sellerId === currentSeller.id);
   const sellerPurchases = purchases.filter((purchase) => purchase.sellerId === currentSeller.id);
   const sellerBalanceAdjustments = balanceAdjustments.filter((adjustment) => adjustment.sellerId === currentSeller.id);
@@ -882,7 +882,11 @@ export function App() {
     let nextStock = stock;
     let nextProducts = products;
     if (sale.stockApplied) {
-      const inventory = applySaleInventorySnapshot(nextStock, nextProducts, sale, 1);
+      const inventory = applySaleInventoryTransition(nextStock, nextProducts, sale, "pendiente", sale.status);
+      if (!inventory.ok) {
+        notify("error", "No hay stock suficiente para cargar esa venta.");
+        return;
+      }
       nextStock = inventory.nextStock;
       nextProducts = inventory.nextProducts;
       setStock(nextStock);
@@ -924,24 +928,76 @@ export function App() {
     notify("success", "Pedido borrado.");
   }
 
-  function applySaleInventorySnapshot(stockRows: CardStock[], productRows: Product[], sale: Sale, direction: 1 | -1) {
+  function applySaleInventoryTransition(stockRows: CardStock[], productRows: Product[], sale: Sale, fromStatus: SaleStatus, toStatus: SaleStatus) {
+    const fromState = saleInventoryState(fromStatus);
+    const toState = saleInventoryState(toStatus);
+    if (fromState === toState) return { nextStock: stockRows, nextProducts: productRows, ok: true };
+
+    const cardQuantities = sale.lines
+      .filter((line) => line.itemType === "card")
+      .reduce<Record<string, number>>((acc, line) => {
+        acc[line.itemId] = (acc[line.itemId] ?? 0) + line.quantity;
+        return acc;
+      }, {});
+    const productQuantities = sale.lines
+      .filter((line) => line.itemType === "product")
+      .reduce<Record<string, number>>((acc, line) => {
+        acc[line.itemId] = (acc[line.itemId] ?? 0) + line.quantity;
+        return acc;
+      }, {});
+
+    let ok = true;
+    const touchedCards = new Set(Object.keys(cardQuantities));
+    const touchedProducts = new Set(Object.keys(productQuantities));
+
     const nextStock = stockRows.map((item) => {
-      const saleQuantity = sale.lines
-        .filter((line) => line.itemType === "card" && line.itemId === item.id)
-        .reduce((sum, line) => sum + line.quantity, 0);
+      const saleQuantity = cardQuantities[item.id] ?? 0;
       if (!saleQuantity) return item;
-      return { ...item, reserved: Math.max(0, item.reserved + saleQuantity * direction) };
+
+      let quantity = item.quantity;
+      let reserved = item.reserved;
+      if (fromState === "reserved") reserved = Math.max(0, reserved - saleQuantity);
+      if (fromState === "sold") quantity += saleQuantity;
+
+      if (toState === "reserved") {
+        if (quantity - reserved < saleQuantity) ok = false;
+        reserved += saleQuantity;
+      }
+      if (toState === "sold") {
+        if (quantity - reserved < saleQuantity) ok = false;
+        quantity -= saleQuantity;
+      }
+
+      touchedCards.delete(item.id);
+      return { ...item, quantity: Math.max(0, quantity), reserved: Math.max(0, reserved) };
     });
 
     const nextProducts = productRows.map((item) => {
-      const saleQuantity = sale.lines
-        .filter((line) => line.itemType === "product" && line.itemId === item.id)
-        .reduce((sum, line) => sum + line.quantity, 0);
+      const saleQuantity = productQuantities[item.id] ?? 0;
       if (!saleQuantity) return item;
-      return { ...item, quantity: Math.max(0, item.quantity - saleQuantity * direction) };
+
+      let quantity = item.quantity;
+      let reserved = item.reserved;
+      if (fromState === "reserved") reserved = Math.max(0, reserved - saleQuantity);
+      if (fromState === "sold") quantity += saleQuantity;
+
+      if (toState === "reserved") {
+        if (quantity - reserved < saleQuantity) ok = false;
+        reserved += saleQuantity;
+      }
+      if (toState === "sold") {
+        if (quantity - reserved < saleQuantity) ok = false;
+        quantity -= saleQuantity;
+      }
+
+      touchedProducts.delete(item.id);
+      return { ...item, quantity: Math.max(0, quantity), reserved: Math.max(0, reserved) };
     });
 
-    return { nextStock, nextProducts };
+    if (touchedCards.size > 0 || touchedProducts.size > 0) ok = false;
+    if (!ok) return { nextStock: stockRows, nextProducts: productRows, ok: false };
+
+    return { nextStock, nextProducts, ok: true };
   }
 
   async function persistSaleToSupabase(sale: Sale) {
@@ -997,13 +1053,12 @@ export function App() {
     let nextStock = stock;
     let nextProducts = products;
 
-    if (nextShouldApply && !sale.stockApplied) {
-      const inventory = applySaleInventorySnapshot(nextStock, nextProducts, sale, 1);
-      nextStock = inventory.nextStock;
-      nextProducts = inventory.nextProducts;
-    }
-    if (!nextShouldApply && sale.stockApplied) {
-      const inventory = applySaleInventorySnapshot(nextStock, nextProducts, sale, -1);
+    if (sale.status !== status) {
+      const inventory = applySaleInventoryTransition(nextStock, nextProducts, sale, sale.status, status);
+      if (!inventory.ok) {
+        notify("error", "No hay stock suficiente para cambiar el estado.");
+        return;
+      }
       nextStock = inventory.nextStock;
       nextProducts = inventory.nextProducts;
     }
@@ -1060,8 +1115,16 @@ export function App() {
     let nextProducts = products;
 
     if (sale.stockApplied) {
-      const reverted = applySaleInventorySnapshot(nextStock, nextProducts, sale, -1);
-      const applied = applySaleInventorySnapshot(reverted.nextStock, reverted.nextProducts, nextSale, 1);
+      const reverted = applySaleInventoryTransition(nextStock, nextProducts, sale, sale.status, "pendiente");
+      if (!reverted.ok) {
+        notify("error", "No pude recalcular el stock de la venta.");
+        return;
+      }
+      const applied = applySaleInventoryTransition(reverted.nextStock, reverted.nextProducts, nextSale, "pendiente", sale.status);
+      if (!applied.ok) {
+        notify("error", "No hay stock suficiente para guardar esos cambios.");
+        return;
+      }
       nextStock = applied.nextStock;
       nextProducts = applied.nextProducts;
       setStock(nextStock);

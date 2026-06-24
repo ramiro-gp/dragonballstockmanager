@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Archive, Boxes, CircleDollarSign, Plus, Save, Trash2, WalletCards, X } from "lucide-react";
 import type { CardStock, Product, Sale, SaleLine, SaleStatus } from "../lib/types";
-import { availableQuantity, formatMoney, kindLabel, paidTotal, statusLabel } from "../lib/helpers";
+import { availableProductQuantity, availableQuantity, formatMoney, kindLabel, paidTotal, statusLabel } from "../lib/helpers";
 import { sortCardStock } from "../lib/sorting";
 import { Metric } from "../components/shared/Metric";
 
@@ -42,7 +42,7 @@ export function SalesPage({
   const [manualLines, setManualLines] = useState<SaleLine[]>([]);
 
   const sortedStock = useMemo(() => [...stock].filter((item) => availableQuantity(item) > 0).sort(sortCardStock), [stock]);
-  const sortedProducts = useMemo(() => [...products].filter((item) => item.quantity > 0).sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const sortedProducts = useMemo(() => [...products].filter((item) => availableProductQuantity(item) > 0).sort((a, b) => a.name.localeCompare(b.name)), [products]);
   const visibleSales = sales.filter((sale) => view === "archived" ? Boolean(sale.archivedAt) : !sale.archivedAt);
   const pageCount = Math.max(1, Math.ceil(visibleSales.length / pageSize));
   const pagedSales = visibleSales.slice((page - 1) * pageSize, page * pageSize);
@@ -85,7 +85,7 @@ export function SalesPage({
       unitPrice: product.price,
       finalUnitPrice: product.price,
       quantity: 1,
-      maxQuantity: Math.max(1, product.quantity),
+      maxQuantity: Math.max(1, availableProductQuantity(product)),
     };
   }
 

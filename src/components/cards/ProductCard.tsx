@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import type { CartLine, Product } from "../../lib/types";
-import { formatMoney } from "../../lib/helpers";
+import { availableProductQuantity, formatMoney } from "../../lib/helpers";
 
 export function ProductCard({
   product,
@@ -11,6 +11,8 @@ export function ProductCard({
   addToCart: (line: CartLine) => void;
   canBuy: boolean;
 }) {
+  const available = availableProductQuantity(product);
+
   return (
     <article className="product-card">
       <img src={product.imageUrl} alt="" />
@@ -31,9 +33,10 @@ export function ProductCard({
                   label: product.name,
                   unitPrice: product.price,
                   quantity: 1,
-                  maxQuantity: product.quantity,
+                  maxQuantity: available,
                 })
               }
+              disabled={available <= 0}
             >
               <Plus size={16} />
               Sumar
