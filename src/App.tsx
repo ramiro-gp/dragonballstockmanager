@@ -50,6 +50,7 @@ export function App() {
   const [currentSeller, setCurrentSeller] = useState<Seller>(() => readStorage(STORAGE_KEYS.currentSeller, fallbackSeller));
   const [sellerDirectory, setSellerDirectory] = useState<Seller[]>(() => upsertMainSeller(sellers, readStorage(STORAGE_KEYS.currentSeller, fallbackSeller)));
   const [publicSellersLoaded, setPublicSellersLoaded] = useState(!supabase);
+  const [publicInventoryLoading, setPublicInventoryLoading] = useState(false);
   const [sellerSettings, setSellerSettings] = useState<SellerSettings>(fallbackSellerSettings);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
@@ -76,6 +77,8 @@ export function App() {
   const manualExpense = sellerBalanceAdjustments.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
   const visibleRoute = !isLoggedIn && privateRoutes.includes(route) ? "/login" : route;
   const sellerInactive = isLoggedIn && currentSeller.status === "inactive";
+  const publicStockRouteVisible = visibleRoute === "/" || isSellerStockRoute(visibleRoute);
+  const showPublicInventoryLoader = Boolean(publicSeller && publicInventoryLoading && !publicSellerStock.length && !publicSellerProducts.length);
 
   useEffect(() => {
     const onPopState = () => setRoute(getCurrentRoute());
@@ -110,9 +113,16 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!supabase || !publicSeller || !(visibleRoute === "/" || isSellerStockRoute(visibleRoute))) return;
-    void loadSellerInventoryFromSupabase(publicSeller.id);
-  }, [publicSeller?.id, visibleRoute]);
+    if (!supabase || !publicSeller || !publicStockRouteVisible) return;
+    let cancelled = false;
+    setPublicInventoryLoading(true);
+    loadSellerInventoryFromSupabase(publicSeller.id).finally(() => {
+      if (!cancelled) setPublicInventoryLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [publicSeller?.id, publicStockRouteVisible]);
 
   useEffect(() => writeStorage(STORAGE_KEYS.theme, theme), [theme]);
   useEffect(() => writeStorage(STORAGE_KEYS.sidebarCollapsed, sidebarCollapsed), [sidebarCollapsed]);
@@ -1089,7 +1099,8 @@ export function App() {
         }}
       >
         <Suspense fallback={<PageLoader />}>
-          {(visibleRoute === "/" || isSellerStockRoute(visibleRoute)) && publicSeller && (
+          {publicStockRouteVisible && publicSeller && showPublicInventoryLoader && <PageLoader />}
+          {publicStockRouteVisible && publicSeller && !showPublicInventoryLoader && (
             <PublicStockPage
               seller={publicSeller}
               stock={publicSellerStock}
