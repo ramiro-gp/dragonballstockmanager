@@ -49,6 +49,7 @@ export function App() {
   const [authError, setAuthError] = useState("");
   const [currentSeller, setCurrentSeller] = useState<Seller>(() => readStorage(STORAGE_KEYS.currentSeller, fallbackSeller));
   const [sellerDirectory, setSellerDirectory] = useState<Seller[]>(() => upsertMainSeller(sellers, readStorage(STORAGE_KEYS.currentSeller, fallbackSeller)));
+  const [publicSellersLoaded, setPublicSellersLoaded] = useState(!supabase);
   const [sellerSettings, setSellerSettings] = useState<SellerSettings>(fallbackSellerSettings);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
@@ -60,15 +61,15 @@ export function App() {
   const [balanceAdjustments, setBalanceAdjustments] = useState<BalanceAdjustment[]>(() => readStorage(STORAGE_KEYS.balanceAdjustments, []));
   const [cart, setCart] = useState<CartLine[]>(() => readStorage(STORAGE_KEYS.cart, []));
 
-  const publicSeller = getPublicSeller(route, sellerDirectory) ?? currentSeller;
+  const publicSeller = getPublicSeller(route, sellerDirectory);
   const sellerStock = stock.filter((item) => item.sellerId === currentSeller.id);
   const sellerProducts = products.filter((item) => item.sellerId === currentSeller.id);
-  const publicSellerStock = stock.filter((item) => item.sellerId === publicSeller.id && availableQuantity(item) > 0);
-  const publicSellerProducts = products.filter((item) => item.sellerId === publicSeller.id && item.quantity > 0);
+  const publicSellerStock = publicSeller ? stock.filter((item) => item.sellerId === publicSeller.id && availableQuantity(item) > 0) : [];
+  const publicSellerProducts = publicSeller ? products.filter((item) => item.sellerId === publicSeller.id && item.quantity > 0) : [];
   const sellerSales = sales.filter((sale) => sale.sellerId === currentSeller.id);
   const sellerPurchases = purchases.filter((purchase) => purchase.sellerId === currentSeller.id);
   const sellerBalanceAdjustments = balanceAdjustments.filter((adjustment) => adjustment.sellerId === currentSeller.id);
-  const cartSeller = sellerDirectory.find((seller) => seller.id === cart[0]?.sellerId) ?? publicSeller;
+  const cartSeller = sellerDirectory.find((seller) => seller.id === cart[0]?.sellerId) ?? publicSeller ?? currentSeller;
   const revenue = sellerSales.filter((sale) => sale.status === "confirmada").reduce((sum, sale) => sum + saleTotal(sale), 0);
   const spent = sellerPurchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0);
   const manualIncome = sellerBalanceAdjustments.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
@@ -107,6 +108,11 @@ export function App() {
 
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!supabase || !publicSeller || !(visibleRoute === "/" || isSellerStockRoute(visibleRoute))) return;
+    void loadSellerInventoryFromSupabase(publicSeller.id);
+  }, [publicSeller?.id, visibleRoute]);
 
   useEffect(() => writeStorage(STORAGE_KEYS.theme, theme), [theme]);
   useEffect(() => writeStorage(STORAGE_KEYS.sidebarCollapsed, sidebarCollapsed), [sidebarCollapsed]);
@@ -213,6 +219,7 @@ export function App() {
       .select("id, slug, display_name, whatsapp, role, active, created_at, shipping_enabled, shipping_companies, location, subscription_until, subscription_plan")
       .eq("active", true);
 
+    setPublicSellersLoaded(true);
     if (!data?.length) return;
 
     const mapped = (data as Parameters<typeof mapSupabaseSeller>[0][]).map(mapSupabaseSeller);
@@ -361,21 +368,17 @@ export function App() {
         .order("product_name", { ascending: true }),
     ]);
 
-    if (cardRows?.length) {
-      const nextCards = cardRows.map(mapSupabaseCard);
-      setStock((current) => [
-        ...current.filter((item) => item.sellerId !== sellerId && item.sellerId !== fallbackSellerId),
-        ...nextCards,
-      ]);
-    }
+    const nextCards = cardRows?.map(mapSupabaseCard) ?? [];
+    setStock((current) => [
+      ...current.filter((item) => item.sellerId !== sellerId && item.sellerId !== fallbackSellerId),
+      ...nextCards,
+    ]);
 
-    if (productRows?.length) {
-      const nextProducts = productRows.map(mapSupabaseProduct);
-      setProducts((current) => [
-        ...current.filter((item) => item.sellerId !== sellerId && item.sellerId !== fallbackSellerId),
-        ...nextProducts,
-      ]);
-    }
+    const nextProducts = productRows?.map(mapSupabaseProduct) ?? [];
+    setProducts((current) => [
+      ...current.filter((item) => item.sellerId !== sellerId && item.sellerId !== fallbackSellerId),
+      ...nextProducts,
+    ]);
   }
 
   async function loadSellerSalesFromSupabase(sellerId: string) {
@@ -1086,7 +1089,7 @@ export function App() {
         }}
       >
         <Suspense fallback={<PageLoader />}>
-          {(visibleRoute === "/" || isSellerStockRoute(visibleRoute)) && (
+          {(visibleRoute === "/" || isSellerStockRoute(visibleRoute)) && publicSeller && (
             <PublicStockPage
               seller={publicSeller}
               stock={publicSellerStock}
@@ -1097,6 +1100,14 @@ export function App() {
               canBuy={!isLoggedIn || publicSeller.id !== currentSeller.id}
               navigate={navigate}
             />
+          )}
+          {isSellerStockRoute(visibleRoute) && !publicSeller && !publicSellersLoaded && <PageLoader />}
+          {isSellerStockRoute(visibleRoute) && !publicSeller && publicSellersLoaded && (
+            <section className="tool-surface">
+              <p className="eyebrow">Stock</p>
+              <h2 className="panel-title">Vendedor no encontrado</h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">Revisá el link o pedile al vendedor que te lo vuelva a pasar.</p>
+            </section>
           )}
           {visibleRoute === "/quiero-vender" && <SellPage />}
           {visibleRoute === "/carrito" && (
