@@ -13,6 +13,22 @@
 drop policy if exists "Customers can create pending sales" on public.sales;
 drop policy if exists "Customers can create sale lines" on public.sale_lines;
 
+alter table public.sales
+  add column if not exists delivery_status text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'sales_delivery_status_valid'
+  ) then
+    alter table public.sales
+      add constraint sales_delivery_status_valid
+      check (delivery_status is null or delivery_status in ('delivery_pending', 'shipped', 'delivered'))
+      not valid;
+  end if;
+end;
+$$;
+
 create or replace function public.create_pending_sale(
   p_seller_id uuid,
   p_customer_name text,
@@ -155,8 +171,11 @@ set search_path = public
 as $$
 declare
   v_sale public.sales%rowtype;
-  v_should_apply boolean;
-  v_direction integer := 0;
+  v_line record;
+  v_old_state text;
+  v_new_state text;
+  v_quantity integer;
+  v_reserved integer;
 begin
   if p_status not in ('pending', 'reserved', 'confirmed', 'delivered', 'cancelled') then
     raise exception 'Invalid sale status';
@@ -176,72 +195,112 @@ begin
     raise exception 'Not allowed';
   end if;
 
-  v_should_apply := p_status in ('reserved', 'confirmed', 'delivered');
+  v_old_state := case
+    when v_sale.status = 'reserved' then 'reserved'
+    when v_sale.status in ('confirmed', 'delivered') then 'sold'
+    else 'none'
+  end;
 
-  if v_should_apply and not v_sale.stock_applied then
-    v_direction := 1;
-  elsif not v_should_apply and v_sale.stock_applied then
-    v_direction := -1;
-  end if;
+  v_new_state := case
+    when p_status = 'reserved' then 'reserved'
+    when p_status in ('confirmed', 'delivered') then 'sold'
+    else 'none'
+  end;
 
-  if v_direction = 1 then
-    if exists (
-      select 1
-      from public.sale_lines sl
-      join public.stock_cards sc on sc.id = sl.stock_card_id
-      where sl.sale_id = p_sale_id
-        and sl.item_type = 'card'
-      group by sc.id, sc.quantity, sc.reserved
-      having sc.reserved + sum(sl.quantity) > sc.quantity
-    ) then
-      raise exception 'Not enough card stock';
-    end if;
-
-    if exists (
-      select 1
-      from public.sale_lines sl
-      join public.stock_products sp on sp.id = sl.stock_product_id
-      where sl.sale_id = p_sale_id
-        and sl.item_type = 'product'
-      group by sp.id, sp.quantity
-      having sum(sl.quantity) > sp.quantity
-    ) then
-      raise exception 'Not enough product stock';
-    end if;
-  end if;
-
-  if v_direction <> 0 then
-    update public.stock_cards sc
-    set reserved = greatest(0, sc.reserved + grouped.quantity * v_direction)
-    from (
-      select stock_card_id, sum(quantity)::integer as quantity
+  if v_old_state <> v_new_state then
+    for v_line in
+      select
+        item_type,
+        stock_card_id,
+        stock_product_id,
+        sum(quantity)::integer as quantity
       from public.sale_lines
       where sale_id = p_sale_id
-        and item_type = 'card'
-        and stock_card_id is not null
-      group by stock_card_id
-    ) grouped
-    where sc.id = grouped.stock_card_id
-      and sc.seller_id = v_sale.seller_id;
+      group by item_type, stock_card_id, stock_product_id
+    loop
+      if v_line.item_type = 'card' then
+        select quantity, reserved
+        into v_quantity, v_reserved
+        from public.stock_cards
+        where id = v_line.stock_card_id
+          and seller_id = v_sale.seller_id
+        for update;
 
-    update public.stock_products sp
-    set quantity = greatest(0, sp.quantity - grouped.quantity * v_direction)
-    from (
-      select stock_product_id, sum(quantity)::integer as quantity
-      from public.sale_lines
-      where sale_id = p_sale_id
-        and item_type = 'product'
-        and stock_product_id is not null
-      group by stock_product_id
-    ) grouped
-    where sp.id = grouped.stock_product_id
-      and sp.seller_id = v_sale.seller_id;
+        if not found then
+          raise exception 'Card stock not found';
+        end if;
+
+        if v_old_state = 'reserved' then
+          v_reserved := greatest(0, v_reserved - v_line.quantity);
+        elsif v_old_state = 'sold' then
+          v_quantity := v_quantity + v_line.quantity;
+        end if;
+
+        if v_new_state = 'reserved' then
+          if v_quantity - v_reserved < v_line.quantity then
+            raise exception 'Not enough card stock';
+          end if;
+          v_reserved := v_reserved + v_line.quantity;
+        elsif v_new_state = 'sold' then
+          if v_quantity - v_reserved < v_line.quantity then
+            raise exception 'Not enough card stock';
+          end if;
+          v_quantity := v_quantity - v_line.quantity;
+        end if;
+
+        update public.stock_cards
+        set
+          quantity = greatest(0, v_quantity),
+          reserved = greatest(0, v_reserved)
+        where id = v_line.stock_card_id
+          and seller_id = v_sale.seller_id;
+      elsif v_line.item_type = 'product' then
+        select quantity, reserved
+        into v_quantity, v_reserved
+        from public.stock_products
+        where id = v_line.stock_product_id
+          and seller_id = v_sale.seller_id
+        for update;
+
+        if not found then
+          raise exception 'Product stock not found';
+        end if;
+
+        if v_old_state = 'reserved' then
+          v_reserved := greatest(0, v_reserved - v_line.quantity);
+        elsif v_old_state = 'sold' then
+          v_quantity := v_quantity + v_line.quantity;
+        end if;
+
+        if v_new_state = 'reserved' then
+          if v_quantity - v_reserved < v_line.quantity then
+            raise exception 'Not enough product stock';
+          end if;
+          v_reserved := v_reserved + v_line.quantity;
+        elsif v_new_state = 'sold' then
+          if v_quantity - v_reserved < v_line.quantity then
+            raise exception 'Not enough product stock';
+          end if;
+          v_quantity := v_quantity - v_line.quantity;
+        end if;
+
+        update public.stock_products
+        set
+          quantity = greatest(0, v_quantity),
+          reserved = greatest(0, v_reserved)
+        where id = v_line.stock_product_id
+          and seller_id = v_sale.seller_id;
+      else
+        raise exception 'Invalid line item type';
+      end if;
+    end loop;
   end if;
 
   update public.sales
   set
     status = p_status,
-    stock_applied = v_should_apply,
+    delivery_status = case when p_status = 'cancelled' then null else delivery_status end,
+    stock_applied = (v_new_state <> 'none'),
     status_changed_at = case when status is distinct from p_status then current_date else status_changed_at end,
     updated_at = now()
   where id = p_sale_id;
