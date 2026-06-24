@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import type { CartLine, Product } from "../../lib/types";
 import { availableProductQuantity, formatMoney } from "../../lib/helpers";
+import { sanitizeExternalImageUrl } from "../../lib/security";
 
 export function ProductCard({
   product,
@@ -12,10 +13,11 @@ export function ProductCard({
   canBuy: boolean;
 }) {
   const available = availableProductQuantity(product);
+  const imageUrl = sanitizeExternalImageUrl(product.imageUrl);
 
   return (
     <article className="product-card">
-      <img src={product.imageUrl} alt="" />
+      <img src={imageUrl} alt="" />
       <div className="p-4">
         <p className="eyebrow">{product.category}</p>
         <h3 className="font-display text-lg font-black">{product.name}</h3>

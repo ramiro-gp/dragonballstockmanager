@@ -25,7 +25,7 @@ export function SellPage() {
             className="primary-button sell-contact"
             href={`https://wa.me/${sellerContactWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent("Che Rama, quiero ser vendedor en Dragon Ball Stock Manager.")}`}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
           >
             <MessageCircle size={18} />
             Contactar por WhatsApp

@@ -21,7 +21,7 @@ export function SubscriptionExpiredPage({ sellerWhatsapp }: { sellerWhatsapp: st
       <div className="plan-grid">
         {plans.map((plan) => <button className="secondary-button" key={plan.label}>{plan.label} - {plan.price}</button>)}
       </div>
-      <a className="primary-button" href={`https://wa.me/${sellerWhatsapp.replace(/\D/g, "")}?text=${text}`} target="_blank" rel="noreferrer">
+      <a className="primary-button" href={`https://wa.me/${sellerWhatsapp.replace(/\D/g, "")}?text=${text}`} target="_blank" rel="noopener noreferrer">
         Enviar comprobante por WhatsApp
       </a>
     </section>

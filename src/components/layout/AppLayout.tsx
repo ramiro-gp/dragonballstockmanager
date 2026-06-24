@@ -24,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.49.0";
+const APP_VERSION = "v0.50.0";
 
 export function AppLayout({
   children,
@@ -195,7 +195,7 @@ function AppFooter({ navigate }: { navigate: (route: Route) => void }) {
         </div>
         <div className="footer-actions donation-actions">
           <span>Ayudame con una donación</span>
-          <a className="small-button subtle" href="https://cafecito.app/ramitag" target="_blank" rel="noreferrer">Cafecito</a>
+          <a className="small-button subtle" href="https://cafecito.app/ramitag" target="_blank" rel="noopener noreferrer">Cafecito</a>
           <MercadoPagoButton className="small-button subtle" />
         </div>
         <div className="footer-actions vendor-footer-action">
@@ -203,7 +203,7 @@ function AppFooter({ navigate }: { navigate: (route: Route) => void }) {
         </div>
       </div>
       <div className="footer-legal">
-        <p>© Todos los derechos reservados. Desarrollado por <a href="https://ramirogp.me" target="_blank" rel="noreferrer">Ramiro</a>.</p>
+        <p>© Todos los derechos reservados. Desarrollado por <a href="https://ramirogp.me" target="_blank" rel="noopener noreferrer">Ramiro</a>.</p>
         <span className="app-version">{APP_VERSION}</span>
       </div>
     </footer>

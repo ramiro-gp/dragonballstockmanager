@@ -4,8 +4,8 @@ import { Layers3, Package, PackagePlus } from "lucide-react";
 import { getColorOptions, getCromerosExpansion, getDefaultKind, getKindOptions, isKnownCromerosCardNumber, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product, PublishCardInput, PublishProductInput, SellerSettings } from "../lib/types";
 import { groupNumbers, parseCardList, parseRange } from "../lib/helpers";
+import { cleanPlainText, DEFAULT_PRODUCT_IMAGE_URL, sanitizeExternalImageUrl } from "../lib/security";
 
-const defaultImageUrl = "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=900&q=80";
 const defaultPrices: Record<CardKind, number> = { comun: 400, fluor: 700, holo: 2000 };
 
 export function StockManagerPage({
@@ -215,7 +215,7 @@ export function StockManagerPage({
   }
 
   async function loadProduct() {
-    const name = productName.trim();
+    const name = cleanPlainText(productName, 80);
     if (!name || productQuantity <= 0) return;
     setPublishedMessage("");
     setPublishError("");
@@ -223,11 +223,11 @@ export function StockManagerPage({
     const productToPublish: PublishProductInput = {
       name,
       category: productCategory,
-      description: productDescription.trim() || "Producto publicado sin descripción.",
+      description: cleanPlainText(productDescription, 600) || "Producto publicado sin descripción.",
       quantity: Math.max(1, productQuantity),
       reserved: 0,
       price: Math.max(0, productPrice),
-      imageUrl: productImageUrl.trim() || defaultImageUrl,
+      imageUrl: sanitizeExternalImageUrl(productImageUrl, DEFAULT_PRODUCT_IMAGE_URL),
       imageFile: productImageFile,
       purchaseCost: Math.max(0, productPurchaseCost),
     };
@@ -406,7 +406,7 @@ export function StockManagerPage({
               <label className="field"><span>Costo de compra</span><input type="number" min={0} value={productPurchaseCost} onChange={(event) => setProductPurchaseCost(Math.max(0, Number(event.target.value)))} /></label>
               <label className="field product-load-wide"><span>Descripción</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Ej: expansión completa, incluye caja original, estado general, si faltan o sobran cartas..." maxLength={600} /></label>
               <label className="field"><span>Foto del producto</span><input type="file" accept="image/*" onChange={(event) => setProductImageFile(event.target.files?.[0] ?? null)} /></label>
-              <label className="field"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." disabled={Boolean(productImageFile)} /></label>
+              <label className="field"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." maxLength={2048} disabled={Boolean(productImageFile)} /></label>
               <button className="primary-button product-load-action" onClick={loadProduct} disabled={!productName.trim() || isPublishing}>
                 <PackagePlus size={18} />
                 {isPublishing ? "Publicando..." : "Publicar producto"}

@@ -15,7 +15,7 @@ export function Donation() {
         <p className="text-sm font-bold">Apoyá la plataforma</p>
         <p className="mt-1 text-xs text-[var(--muted)]">Si te sirve, podés dejar una mano para mantenerla viva.</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <a className="small-button" href="https://cafecito.app/ramitag" target="_blank" rel="noreferrer">
+          <a className="small-button" href="https://cafecito.app/ramitag" target="_blank" rel="noopener noreferrer">
             Cafecito
           </a>
           <button className="small-button" onClick={() => setOpen(true)}>Mercado Pago</button>

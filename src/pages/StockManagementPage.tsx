@@ -4,6 +4,7 @@ import { getColorOptions, getKindOptions, isKnownCromerosCardNumber } from "../d
 import type { CardKind, CardStock, Product } from "../lib/types";
 import { formatMoney, kindLabel, parseCardList } from "../lib/helpers";
 import { SEARCH_FILTERS } from "../lib/limits";
+import { cleanPlainText, sanitizeExternalImageUrl } from "../lib/security";
 import { sortCardStock } from "../lib/sorting";
 import { Pagination } from "../components/shared/Pagination";
 
@@ -146,7 +147,13 @@ export function StockManagementPage({
 
   async function saveProductChanges() {
     setSavingProducts(true);
-    const fallbackRows = draftProducts.map((item) => ({ ...item, sellerId }));
+    const fallbackRows = draftProducts.map((item) => ({
+      ...item,
+      sellerId,
+      name: cleanPlainText(item.name, 80),
+      description: cleanPlainText(item.description, 600),
+      imageUrl: sanitizeExternalImageUrl(item.imageUrl),
+    }));
     const savedRows = onSaveProducts ? await onSaveProducts(fallbackRows) : fallbackRows;
     setSavingProducts(false);
 
@@ -300,11 +307,11 @@ export function StockManagementPage({
               <select value={product.category} onChange={(event) => updateProduct(product.id, { category: event.target.value as Product["category"] })}>
                 {productCategories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}
               </select>
-              <input value={product.name} onChange={(event) => updateProduct(product.id, { name: event.target.value })} />
+              <input value={product.name} onChange={(event) => updateProduct(product.id, { name: event.target.value })} maxLength={80} />
               <input type="number" min={0} value={product.quantity} onChange={(event) => updateProduct(product.id, { quantity: Math.max(0, Number(event.target.value)) })} />
               <input type="number" min={0} value={product.price} onChange={(event) => updateProduct(product.id, { price: Math.max(0, Number(event.target.value)) })} />
-              <input value={product.description} onChange={(event) => updateProduct(product.id, { description: event.target.value })} />
-              <input value={product.imageUrl} onChange={(event) => updateProduct(product.id, { imageUrl: event.target.value })} />
+              <input value={product.description} onChange={(event) => updateProduct(product.id, { description: event.target.value })} maxLength={600} />
+              <input value={product.imageUrl} onChange={(event) => updateProduct(product.id, { imageUrl: event.target.value })} maxLength={2048} />
               <button className="ghost-icon" onClick={() => setDraftProducts((current) => current.filter((row) => row.id !== product.id))} aria-label="Eliminar producto">
                 <Trash2 size={16} />
               </button>

@@ -1,4 +1,5 @@
 import type { CardKind, CardStock, CartLine, Product, Sale, SaleStatus } from "./types";
+import { cleanPlainText } from "./security";
 
 export const formatMoney = (value: number) =>
   new Intl.NumberFormat("es-AR", {
@@ -88,11 +89,12 @@ export function saleInventoryState(status: SaleStatus) {
 
 export function buildWhatsappUrl(phone: string, sellerName: string, order: string, lines: CartLine[], note: string) {
   const list = lines
-    .map((line) => `- ${line.label} x${line.quantity}: ${formatWhatsappMoney(line.unitPrice * line.quantity)}`)
+    .map((line) => `- ${cleanPlainText(line.label, 120)} x${line.quantity}: ${formatWhatsappMoney(line.unitPrice * line.quantity)}`)
     .join("\n");
-  const message = `Hola ${sellerName}, me gustaría comprar estas cartas/productos:\n\nPedido ${order}\n${list}\n\nTotal: ${formatWhatsappMoney(
+  const cleanNote = cleanPlainText(note, 500);
+  const message = `Hola ${cleanPlainText(sellerName, 80)}, me gustaria comprar estas cartas/productos:\n\nPedido ${cleanPlainText(order, 32)}\n${list}\n\nTotal: ${formatWhatsappMoney(
     cartTotal(lines),
-  )}${note ? `\n\nNota: ${note}` : ""}`;
+  )}${cleanNote ? `\n\nNota: ${cleanNote}` : ""}`;
 
   return `https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`;
 }
