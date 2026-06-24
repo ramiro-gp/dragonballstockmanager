@@ -1,5 +1,6 @@
 export type CardKind = "comun" | "fluor" | "holo";
 export type SaleStatus = "pendiente" | "reservada" | "confirmada" | "cancelada";
+export type DeliveryStatus = "delivery_pending" | "shipped" | "delivered";
 export type Theme = "light" | "dark";
 export type ToastKind = "success" | "error" | "info";
 
@@ -135,6 +136,7 @@ export type Sale = {
   customerWhatsapp?: string;
   note?: string;
   status: SaleStatus;
+  deliveryStatus?: DeliveryStatus;
   stockApplied: boolean;
   createdAt: string;
   statusChangedAt?: string;

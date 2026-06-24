@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Archive, Boxes, CircleDollarSign, Plus, Save, Trash2, WalletCards, X } from "lucide-react";
-import type { CardStock, Product, Sale, SaleLine, SaleStatus } from "../lib/types";
+import type { CardStock, DeliveryStatus, Product, Sale, SaleLine, SaleStatus } from "../lib/types";
 import { availableProductQuantity, availableQuantity, formatMoney, kindLabel, paidTotal, statusLabel } from "../lib/helpers";
 import { sortCardStock } from "../lib/sorting";
 import { Metric } from "../components/shared/Metric";
 
 const pageSize = 8;
+const deliveryLabels: Record<DeliveryStatus, string> = {
+  delivery_pending: "Pendiente de envío",
+  shipped: "Enviado",
+  delivered: "Entregado",
+};
+const deliveryStatuses: DeliveryStatus[] = ["delivery_pending", "shipped", "delivered"];
 
 export function SalesPage({
   sales,
   stock,
   products,
   changeSaleStatus,
+  changeSaleDeliveryStatus,
   saveSaleLines,
   createManualSale,
   archiveSale,
@@ -22,6 +29,7 @@ export function SalesPage({
   stock: CardStock[];
   products: Product[];
   changeSaleStatus: (saleId: string, status: SaleStatus) => Promise<void> | void;
+  changeSaleDeliveryStatus: (saleId: string, status?: DeliveryStatus) => Promise<void> | void;
   updateSaleLine: (saleId: string, lineIndex: number, quantity: number, price: number) => void;
   saveSaleLines: (saleId: string, lines: SaleLine[]) => Promise<void> | void;
   createManualSale: (input: { customerName: string; customerWhatsapp?: string; note?: string; date: string; lines: SaleLine[]; applyStock: boolean }) => Promise<void> | void;
@@ -175,6 +183,15 @@ export function SalesPage({
     setFeedback("Estado actualizado.");
   }
 
+  async function setDeliveryStatus(sale: Sale, status?: DeliveryStatus) {
+    if (sale.status === "cancelada" || sale.deliveryStatus === status) return;
+    setFeedback("");
+    setSavingSaleIds((current) => Array.from(new Set([...current, sale.id])));
+    await changeSaleDeliveryStatus(sale.id, status);
+    setSavingSaleIds((current) => current.filter((id) => id !== sale.id));
+    setFeedback("Entrega actualizada.");
+  }
+
   return (
     <div className="grid gap-4">
       <div className="section-heading">
@@ -282,6 +299,22 @@ export function SalesPage({
                   {sortedProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
                 </select>
               </label>
+            </div>
+
+            <div className="mt-4 grid gap-2 border-t border-[var(--line)] pt-4">
+              <p className="eyebrow">Entrega</p>
+              {sale.status === "cancelada" ? (
+                <p className="text-sm text-[var(--muted)]">Venta cancelada, sin seguimiento de entrega activo.</p>
+              ) : (
+                <div className="view-toggle w-fit">
+                  <button className={clsx(!sale.deliveryStatus && "active")} onClick={() => void setDeliveryStatus(sale, undefined)} disabled={isSavingSale}>Sin estado</button>
+                  {deliveryStatuses.map((status) => (
+                    <button key={status} className={clsx(sale.deliveryStatus === status && "active")} onClick={() => void setDeliveryStatus(sale, status)} disabled={isSavingSale}>
+                      {deliveryLabels[status]}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="mt-5 sale-edit-table">

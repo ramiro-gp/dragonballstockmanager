@@ -6,7 +6,7 @@ import { initialProducts, initialPurchases, initialSales, initialStock, sellers 
 import { availableProductQuantity, availableQuantity, cartTotal, formatMoney, saleInventoryState, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { compressProductImage } from "./lib/images";
 import { supabase } from "./lib/supabase";
-import type { BalanceAdjustment, CardKind, CardStock, CartLine, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
+import type { BalanceAdjustment, CardKind, CardStock, CartLine, DeliveryStatus, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
 import type { CreateSellerInput } from "./pages/CreateSellerPage";
 
 const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
@@ -403,6 +403,7 @@ export function App() {
         customer_whatsapp,
         customer_note,
         status,
+        delivery_status,
         stock_applied,
         archived_at,
         manual,
@@ -822,6 +823,7 @@ export function App() {
       customerWhatsapp,
       note,
       status: "pendiente",
+      deliveryStatus: undefined,
       stockApplied: false,
       createdAt: new Date().toISOString().slice(0, 10),
       statusChangedAt: new Date().toISOString().slice(0, 10),
@@ -870,6 +872,7 @@ export function App() {
       customerWhatsapp: input.customerWhatsapp,
       note: input.note,
       status: "confirmada",
+      deliveryStatus: undefined,
       stockApplied: input.applyStock,
       createdAt: input.date || new Date().toISOString().slice(0, 10),
       statusChangedAt: input.date || new Date().toISOString().slice(0, 10),
@@ -1064,7 +1067,13 @@ export function App() {
     }
 
     const statusChangedAt = status === sale.status ? sale.statusChangedAt ?? sale.createdAt : new Date().toISOString().slice(0, 10);
-    const nextSale = { ...sale, status, stockApplied: nextShouldApply, statusChangedAt };
+    const nextSale = {
+      ...sale,
+      status,
+      deliveryStatus: status === "cancelada" ? undefined : sale.deliveryStatus,
+      stockApplied: nextShouldApply,
+      statusChangedAt,
+    };
 
     if (supabase) {
       const { error: rpcError } = await supabase.rpc("set_sale_status", {
@@ -1073,7 +1082,13 @@ export function App() {
       });
 
       if (!rpcError) {
-        await supabase.from("sales").update({ status_changed_at: statusChangedAt }).eq("id", saleId);
+        await supabase
+          .from("sales")
+          .update({
+            status_changed_at: statusChangedAt,
+            ...(status === "cancelada" ? { delivery_status: null } : {}),
+          })
+          .eq("id", saleId);
         await loadSellerInventoryFromSupabase(currentSeller.id);
         await loadSellerSalesFromSupabase(currentSeller.id);
         return;
@@ -1087,6 +1102,24 @@ export function App() {
     if (supabase) {
       await saveManagedCardsToSupabase(nextStock.filter((item) => item.sellerId === currentSeller.id));
       await saveManagedProductsToSupabase(nextProducts.filter((item) => item.sellerId === currentSeller.id));
+      await loadSellerSalesFromSupabase(currentSeller.id);
+    }
+  }
+
+  async function changeSaleDeliveryStatus(saleId: string, deliveryStatus?: DeliveryStatus) {
+    const sale = sales.find((item) => item.id === saleId);
+    if (!sale || sale.status === "cancelada") return;
+    setSales((current) => current.map((item) => item.id === saleId ? { ...item, deliveryStatus } : item));
+    if (supabase) {
+      const { error } = await supabase
+        .from("sales")
+        .update({ delivery_status: deliveryStatus ?? null })
+        .eq("id", saleId);
+      if (error) {
+        notify("error", "No pude guardar el estado de entrega.");
+        await loadSellerSalesFromSupabase(currentSeller.id);
+        return;
+      }
       await loadSellerSalesFromSupabase(currentSeller.id);
     }
   }
@@ -1253,6 +1286,7 @@ export function App() {
               changeSaleStatus={changeSaleStatus}
               updateSaleLine={updateSaleLine}
               saveSaleLines={saveSaleLines}
+              changeSaleDeliveryStatus={changeSaleDeliveryStatus}
               createManualSale={createManualSale}
               archiveSale={archiveSale}
               deleteSale={deleteSale}
@@ -1407,6 +1441,7 @@ function mapSupabaseSale(row: {
   customer_whatsapp: string | null;
   customer_note: string | null;
   status: string;
+  delivery_status?: string | null;
   stock_applied: boolean;
   archived_at?: string | null;
   manual?: boolean | null;
@@ -1439,6 +1474,7 @@ function mapSupabaseSale(row: {
     customerWhatsapp: row.customer_whatsapp ?? "",
     note: row.customer_note ?? "",
     status: fromSupabaseStatus(row.status),
+    deliveryStatus: fromSupabaseDeliveryStatus(row.delivery_status),
     stockApplied: row.stock_applied,
     createdAt: row.created_at.slice(0, 10),
     statusChangedAt: row.status_changed_at?.slice(0, 10) ?? row.created_at.slice(0, 10),
@@ -1476,6 +1512,11 @@ function fromSupabaseStatus(status: string): SaleStatus {
   if (status === "confirmed" || status === "delivered") return "confirmada";
   if (status === "cancelled") return "cancelada";
   return "pendiente";
+}
+
+function fromSupabaseDeliveryStatus(status?: string | null): DeliveryStatus | undefined {
+  if (status === "delivery_pending" || status === "shipped" || status === "delivered") return status;
+  return undefined;
 }
 
 function saleLineToSupabaseInsert(saleId: string, sellerId: string, line: SaleLine) {

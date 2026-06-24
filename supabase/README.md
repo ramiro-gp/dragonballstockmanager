@@ -19,7 +19,7 @@ Paste each file completely in a new query and run it.
 
 `stock_catalog_validation_v1.sql` makes Supabase reject invalid card stock writes and auto-fill `catalog_card_id` when possible.
 
-`stock_reserved_sold_v1.sql` makes reserved sales reserve stock and confirmed sales decrement stock permanently, without rewriting existing rows.
+`stock_reserved_sold_v1.sql` makes reserved sales reserve stock and confirmed sales decrement stock permanently, keeps public checkout validation aligned with `quantity - reserved`, and adds the optional internal delivery status for sales, without rewriting existing rows.
 
 ## Optional resets
 

@@ -5,9 +5,159 @@
 -- - Keeps pending/cancelled sales without stock impact.
 -- - Makes reserved sales increment `reserved`.
 -- - Makes confirmed/delivered sales decrement `quantity` and release any prior reservation.
+-- - Validates public checkout against available quantity (`quantity - reserved`) for cards and products.
 -- - Keeps sale history and totals unchanged.
 --
 -- It does not delete or rewrite existing data.
+
+alter table public.sales
+  add column if not exists delivery_status text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'sales_delivery_status_valid'
+  ) then
+    alter table public.sales
+      add constraint sales_delivery_status_valid
+      check (delivery_status is null or delivery_status in ('delivery_pending', 'shipped', 'delivered'))
+      not valid;
+  end if;
+end;
+$$;
+
+create or replace function public.create_pending_sale(
+  p_seller_id uuid,
+  p_customer_name text,
+  p_customer_whatsapp text,
+  p_customer_note text,
+  p_lines jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_sale_id uuid;
+  v_line jsonb;
+  v_total integer := 0;
+  v_quantity integer;
+  v_price integer;
+  v_available integer;
+begin
+  if not exists (
+    select 1
+    from public.sellers
+    where id = p_seller_id
+      and active = true
+      and (
+        subscription_plan in ('lifetime', 'owner')
+        or subscription_until is null
+        or subscription_until >= current_date
+      )
+  ) then
+    raise exception 'Seller is not active';
+  end if;
+
+  if p_lines is null or jsonb_typeof(p_lines) <> 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'Sale has no lines';
+  end if;
+
+  for v_line in select * from jsonb_array_elements(p_lines)
+  loop
+    v_quantity := greatest(1, coalesce((v_line->>'quantity')::integer, 1));
+    v_price := greatest(0, coalesce((v_line->>'unit_price_ars')::integer, 0));
+
+    if v_line->>'item_type' = 'card' then
+      select quantity - reserved
+      into v_available
+      from public.stock_cards
+      where id = nullif(v_line->>'stock_card_id', '')::uuid
+        and seller_id = p_seller_id
+      for update;
+
+      if v_available is null or v_available < v_quantity then
+        raise exception 'Not enough card stock';
+      end if;
+    elsif v_line->>'item_type' = 'product' then
+      select quantity - reserved
+      into v_available
+      from public.stock_products
+      where id = nullif(v_line->>'stock_product_id', '')::uuid
+        and seller_id = p_seller_id
+        and active = true
+      for update;
+
+      if v_available is null or v_available < v_quantity then
+        raise exception 'Not enough product stock';
+      end if;
+    else
+      raise exception 'Invalid line item type';
+    end if;
+
+    v_total := v_total + (v_quantity * v_price);
+  end loop;
+
+  insert into public.sales (
+    seller_id,
+    customer_name,
+    customer_whatsapp,
+    customer_note,
+    status,
+    stock_applied,
+    total_ars,
+    status_changed_at
+  )
+  values (
+    p_seller_id,
+    coalesce(nullif(p_customer_name, ''), 'Cliente sin nombre'),
+    p_customer_whatsapp,
+    p_customer_note,
+    'pending',
+    false,
+    v_total,
+    current_date
+  )
+  returning id into v_sale_id;
+
+  for v_line in select * from jsonb_array_elements(p_lines)
+  loop
+    insert into public.sale_lines (
+      sale_id,
+      seller_id,
+      item_type,
+      stock_card_id,
+      stock_product_id,
+      card_number,
+      expansion,
+      variant_type,
+      color_variant,
+      product_name,
+      quantity,
+      unit_price_ars
+    )
+    values (
+      v_sale_id,
+      p_seller_id,
+      v_line->>'item_type',
+      nullif(v_line->>'stock_card_id', '')::uuid,
+      nullif(v_line->>'stock_product_id', '')::uuid,
+      nullif(v_line->>'card_number', '')::integer,
+      nullif(v_line->>'expansion', ''),
+      nullif(v_line->>'variant_type', ''),
+      nullif(v_line->>'color_variant', ''),
+      nullif(v_line->>'product_name', ''),
+      greatest(1, coalesce((v_line->>'quantity')::integer, 1)),
+      greatest(0, coalesce((v_line->>'unit_price_ars')::integer, 0))
+    );
+  end loop;
+
+  return v_sale_id;
+end;
+$$;
+
+grant execute on function public.create_pending_sale(uuid, text, text, text, jsonb) to anon, authenticated;
 
 create or replace function public.set_sale_status(
   p_sale_id uuid,
@@ -148,6 +298,7 @@ begin
   update public.sales
   set
     status = p_status,
+    delivery_status = case when p_status = 'cancelled' then null else delivery_status end,
     stock_applied = (v_new_state <> 'none'),
     status_changed_at = case when status is distinct from p_status then current_date else status_changed_at end,
     updated_at = now()

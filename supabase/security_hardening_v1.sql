@@ -68,7 +68,7 @@ begin
         raise exception 'Not enough card stock';
       end if;
     elsif v_line->>'item_type' = 'product' then
-      select quantity
+      select quantity - reserved
       into v_available
       from public.stock_products
       where id = nullif(v_line->>'stock_product_id', '')::uuid
