@@ -210,7 +210,7 @@ export function PublicStockPage({
         <h3>Otros productos</h3>
         <span>{availableProducts.length} publicados</span>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="product-grid">
         {visibleProducts.map((product) => <ProductCard key={product.id} product={product} addToCart={addToCart} canBuy={canBuy} />)}
       </div>
       {!availableProducts.length && <p className="empty">No hay otros productos publicados.</p>}

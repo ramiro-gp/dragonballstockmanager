@@ -45,8 +45,8 @@ export function StockManagerPage({
   const [productCategory, setProductCategory] = useState<Product["category"]>("lote");
   const [productDescription, setProductDescription] = useState("");
   const [productQuantity, setProductQuantity] = useState(1);
-  const [productPrice, setProductPrice] = useState(0);
-  const [productPurchaseCost, setProductPurchaseCost] = useState(0);
+  const [productPrice, setProductPrice] = useState("0");
+  const [productPurchaseCost, setProductPurchaseCost] = useState("0");
   const [productImageUrl, setProductImageUrl] = useState("");
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
 
@@ -219,6 +219,7 @@ export function StockManagerPage({
     if (!name || productQuantity <= 0) return;
     setPublishedMessage("");
     setPublishError("");
+    const purchaseCost = parseMoneyInput(productPurchaseCost);
 
     const productToPublish: PublishProductInput = {
       name,
@@ -226,10 +227,10 @@ export function StockManagerPage({
       description: cleanPlainText(productDescription, 600) || "Producto publicado sin descripción.",
       quantity: Math.max(1, productQuantity),
       reserved: 0,
-      price: Math.max(0, productPrice),
+      price: parseMoneyInput(productPrice),
       imageUrl: sanitizeExternalImageUrl(productImageUrl, DEFAULT_PRODUCT_IMAGE_URL),
       imageFile: productImageFile,
-      purchaseCost: Math.max(0, productPurchaseCost),
+      purchaseCost,
     };
 
     setIsPublishing(true);
@@ -255,13 +256,13 @@ export function StockManagerPage({
         imageUrl: productToPublish.imageUrl,
       },
     ]);
-    if (productPurchaseCost > 0) onRegisterExpense?.(productPurchaseCost, `Costo de compra: ${name}`);
+    if (purchaseCost > 0) onRegisterExpense?.(purchaseCost, `Costo de compra: ${name}`);
     setPublishedMessage(`Producto "${name}" publicado.`);
     setProductName("");
     setProductDescription("");
     setProductQuantity(1);
-    setProductPrice(0);
-    setProductPurchaseCost(0);
+    setProductPrice("0");
+    setProductPurchaseCost("0");
     setProductImageUrl("");
     setProductImageFile(null);
   }
@@ -402,8 +403,8 @@ export function StockManagerPage({
                 </select>
               </label>
               <label className="field"><span>Cantidad</span><input type="number" min={1} value={productQuantity} onChange={(event) => setProductQuantity(Number(event.target.value))} /></label>
-              <label className="field"><span>Precio</span><input type="number" min={0} value={productPrice} onChange={(event) => setProductPrice(Number(event.target.value))} /></label>
-              <label className="field"><span>Costo de compra</span><input type="number" min={0} value={productPurchaseCost} onChange={(event) => setProductPurchaseCost(Math.max(0, Number(event.target.value)))} /></label>
+              <label className="field"><span>Precio</span><input type="number" min={0} value={productPrice} onChange={(event) => setProductPrice(normalizeMoneyInput(event.target.value))} /></label>
+              <label className="field"><span>Costo de compra</span><input type="number" min={0} value={productPurchaseCost} onChange={(event) => setProductPurchaseCost(normalizeMoneyInput(event.target.value))} /></label>
               <label className="field product-load-wide"><span>Descripción</span><textarea rows={3} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} placeholder="Ej: expansión completa, incluye caja original, estado general, si faltan o sobran cartas..." maxLength={600} /></label>
               <label className="field"><span>Foto del producto</span><input type="file" accept="image/*" onChange={(event) => setProductImageFile(event.target.files?.[0] ?? null)} /></label>
               <label className="field"><span>URL de imagen</span><input value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} placeholder="https://..." maxLength={2048} disabled={Boolean(productImageFile)} /></label>
@@ -430,6 +431,21 @@ export function StockManagerPage({
       )}
     </div>
   );
+}
+
+function normalizeMoneyInput(value: string) {
+  if (value === "") return "";
+  const normalized = value.replace(",", ".");
+  const [rawInteger, ...rawDecimals] = normalized.split(".");
+  const integerDigits = rawInteger.replace(/\D/g, "");
+  const decimalDigits = rawDecimals.join("").replace(/\D/g, "");
+  const integer = (integerDigits || "0").replace(/^0+(?=\d)/, "");
+  return rawDecimals.length ? `${integer}.${decimalDigits}` : integer;
+}
+
+function parseMoneyInput(value: string) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
 function readPublishPrices(sellerId: string, settings: SellerSettings): Record<CardKind, number> {
