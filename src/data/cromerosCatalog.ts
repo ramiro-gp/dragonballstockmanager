@@ -143,6 +143,10 @@ export function getColorOptions(cardNumber: string, kind: CardKind) {
   return kind === "fluor" ? rule.fluor : rule.holo;
 }
 
+export function variantDisplayLabel(variant: string) {
+  return variant.toLowerCase() === "patrones" ? "Glitter / patrones (diamantado, puntillismo, etc)" : variant;
+}
+
 function range(from: number, to: number) {
   return Array.from({ length: to - from + 1 }, (_, index) => from + index);
 }

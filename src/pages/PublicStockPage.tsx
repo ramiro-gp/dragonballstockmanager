@@ -8,6 +8,7 @@ import { APP_LIMITS, SEARCH_FILTERS } from "../lib/limits";
 import { Pagination } from "../components/shared/Pagination";
 import { CardResult } from "../components/cards/CardResult";
 import { ProductCard } from "../components/cards/ProductCard";
+import { variantDisplayLabel } from "../data/cromerosCatalog";
 
 const colorVariantOptions = ["Dorado", "Plateado", "Dorado opaco", "Plateado opaco", "Rojo", "Azul", "Verde", "Violeta", "Amarillo", "Bronce", "Patrones", "Arcoiris", "Tornasolado", "Naranja", "Turquesa", "Celeste", "Rosa", "Fluor"];
 
@@ -61,7 +62,7 @@ export function PublicStockPage({
         itemType: "card" as const,
         itemId: item.id,
         sellerId: item.sellerId,
-        label: `Carta ${item.number} - ${kindLabel[item.kind]} ${item.variant}`,
+        label: `Carta ${item.number} - ${kindLabel[item.kind]} ${variantDisplayLabel(item.variant)}`,
         unitPrice: item.price,
         quantity: 1,
         maxQuantity: availableQuantity(item),
@@ -177,7 +178,7 @@ export function PublicStockPage({
             <div key={item.id} className="card-table-row">
               <strong>{item.number}</strong>
               <span>{kindLabel[item.kind]}</span>
-              <span>{item.variant}</span>
+              <span>{variantDisplayLabel(item.variant)}</span>
               <span>{item.expansion}</span>
               <strong>{formatMoney(item.price)}</strong>
               <span>x{availableQuantity(item)}</span>
@@ -188,7 +189,7 @@ export function PublicStockPage({
                     itemType: "card",
                     itemId: item.id,
                     sellerId: item.sellerId,
-                    label: `Carta ${item.number} - ${kindLabel[item.kind]} ${item.variant}`,
+                    label: `Carta ${item.number} - ${kindLabel[item.kind]} ${variantDisplayLabel(item.variant)}`,
                     unitPrice: item.price,
                     quantity: 1,
                     maxQuantity: availableQuantity(item),
@@ -274,7 +275,7 @@ function MultiFilter({
               <button key={option} type="button" className={clsx("multi-select-option", active && "active")} onClick={() => toggle(option)}>
                 <span className="multi-select-check">{active && <Check size={14} />}</span>
                 {showSwatches && <span className="variant-swatch" style={{ background: swatchBackground(option) }} />}
-                <span>{option}</span>
+                <span>{variantDisplayLabel(option)}</span>
               </button>
             );
           })}

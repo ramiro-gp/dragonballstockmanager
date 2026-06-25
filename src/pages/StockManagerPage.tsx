@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Layers3, Package, PackagePlus } from "lucide-react";
-import { getColorOptions, getCromerosExpansion, getDefaultKind, getKindOptions, isKnownCromerosCardNumber, needsVariantChoice, type VariantDraft } from "../data/cromerosCatalog";
+import { getColorOptions, getCromerosExpansion, getDefaultKind, getKindOptions, isKnownCromerosCardNumber, needsVariantChoice, variantDisplayLabel, type VariantDraft } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product, PublishCardInput, PublishProductInput, SellerSettings } from "../lib/types";
 import { groupNumbers, parseCardList, parseRange } from "../lib/helpers";
 import { cleanPlainText, DEFAULT_PRODUCT_IMAGE_URL, sanitizeExternalImageUrl } from "../lib/security";
@@ -38,6 +38,7 @@ export function StockManagerPage({
   const [prices, setPrices] = useState<Record<CardKind, number>>(() => readPublishPrices(sellerId, settings));
   const [cardsPurchaseCost, setCardsPurchaseCost] = useState(0);
   const [variantDrafts, setVariantDrafts] = useState<Record<string, VariantDraft>>({});
+  const [bulkVariant, setBulkVariant] = useState("");
   const [publishedMessage, setPublishedMessage] = useState("");
   const [publishError, setPublishError] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
@@ -77,7 +78,7 @@ export function StockManagerPage({
           kind,
           variant: existing && colors.includes(existing.variant) ? existing.variant : colors[0] ?? "Base",
           quantity: existing?.quantity ?? 1,
-          price: existing?.price ?? prices[kind],
+          price: prices[kind],
         };
       });
       return next;
@@ -96,6 +97,11 @@ export function StockManagerPage({
   const totalCommonQuantity = Object.values(commonGroups).reduce((sum, quantity) => sum + quantity, 0);
   const totalVariantQuantity = variantDraftList.reduce((sum, row) => sum + Math.max(0, row.quantity), 0);
   const totalToPublish = totalCommonQuantity + totalVariantQuantity;
+  const bulkVariantOptions = useMemo(
+    () => Array.from(new Set(variantDraftList.flatMap((row) => getColorOptions(row.number, row.kind)))),
+    [variantDraftList],
+  );
+  const bulkVariantValue = bulkVariantOptions.includes(bulkVariant) ? bulkVariant : bulkVariantOptions[0] ?? "";
 
   function updateVariantRow(key: string, patch: Partial<VariantDraft>) {
     setPublishedMessage("");
@@ -116,6 +122,20 @@ export function StockManagerPage({
         },
       };
     });
+  }
+
+  function applyBulkVariant() {
+    if (!bulkVariantValue) return;
+    setPublishedMessage("");
+    setPublishError("");
+    setVariantDrafts((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([key, row]) => {
+          const options = getColorOptions(row.number, row.kind);
+          return [key, options.includes(bulkVariantValue) ? { ...row, variant: bulkVariantValue } : row];
+        }),
+      ),
+    );
   }
 
   async function publishCards() {
@@ -343,6 +363,17 @@ export function StockManagerPage({
               </div>
               <span>{variantRows.length} filas</span>
             </div>
+            <div className="bulk-variant-tool">
+              <label className="field compact-field">
+                <span>Variante masiva</span>
+                <select value={bulkVariantValue} onChange={(event) => setBulkVariant(event.target.value)} disabled={!bulkVariantOptions.length}>
+                  {bulkVariantOptions.map((option) => <option key={option} value={option}>{variantDisplayLabel(option)}</option>)}
+                </select>
+              </label>
+              <button className="secondary-button compact" onClick={applyBulkVariant} disabled={!bulkVariantValue}>
+                Aplicar a todas compatibles
+              </button>
+            </div>
             <div className="variant-sheet">
               <div className="variant-sheet-row header">
                 <span>N° carta</span>
@@ -361,7 +392,7 @@ export function StockManagerPage({
                     {getKindOptions(row.number).map((option) => <option key={option} value={option}>{kindText(option)}</option>)}
                   </select>
                   <select value={row.variant} onChange={(event) => updateVariantRow(row.key, { variant: event.target.value })}>
-                    {getColorOptions(row.number, row.kind).map((option) => <option key={option} value={option}>{option}</option>)}
+                    {getColorOptions(row.number, row.kind).map((option) => <option key={option} value={option}>{variantDisplayLabel(option)}</option>)}
                   </select>
                   <input type="number" min={1} value={row.quantity} onChange={(event) => updateVariantRow(row.key, { quantity: Math.max(1, Number(event.target.value)) })} />
                   <input type="number" min={0} value={row.price} onChange={(event) => updateVariantRow(row.key, { price: Math.max(0, Number(event.target.value)) })} />

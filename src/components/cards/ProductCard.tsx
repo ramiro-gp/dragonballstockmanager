@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import type { CartLine, Product } from "../../lib/types";
 import { availableProductQuantity, formatMoney } from "../../lib/helpers";
@@ -12,12 +13,24 @@ export function ProductCard({
   addToCart: (line: CartLine) => void;
   canBuy: boolean;
 }) {
+  const [imageOpen, setImageOpen] = useState(false);
   const available = availableProductQuantity(product);
   const imageUrl = sanitizeExternalImageUrl(product.imageUrl);
 
+  useEffect(() => {
+    if (!imageOpen) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setImageOpen(false);
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [imageOpen]);
+
   return (
     <article className="product-card">
-      <img src={imageUrl} alt="" />
+      <button className="product-image-button" onClick={() => setImageOpen(true)} aria-label={`Ampliar imagen de ${product.name}`}>
+        <img src={imageUrl} alt={product.name} />
+      </button>
       <div className="p-4">
         <p className="eyebrow">{product.category}</p>
         <h3 className="font-display text-lg font-black">{product.name}</h3>
@@ -46,6 +59,14 @@ export function ProductCard({
           )}
         </div>
       </div>
+      {imageOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`Imagen de ${product.name}`} onClick={() => setImageOpen(false)}>
+          <div className="product-lightbox" onClick={(event) => event.stopPropagation()}>
+            <button className="ghost-icon" onClick={() => setImageOpen(false)} aria-label="Cerrar">X</button>
+            <img src={imageUrl} alt={product.name} />
+          </div>
+        </div>
+      )}
     </article>
   );
 }

@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import type { CardStock, CartLine } from "../../lib/types";
 import { availableQuantity, formatMoney, kindLabel } from "../../lib/helpers";
+import { variantDisplayLabel } from "../../data/cromerosCatalog";
 
 export function CardResult({
   items,
@@ -24,7 +25,7 @@ export function CardResult({
         {items.map((item) => (
           <div key={item.id} className="variant-row">
             <div>
-              <p>{kindLabel[item.kind]} - {item.variant}</p>
+              <p>{kindLabel[item.kind]} - {variantDisplayLabel(item.variant)}</p>
               <span>x{availableQuantity(item)} disponible - {formatMoney(item.price)}</span>
             </div>
             {canBuy && (
@@ -35,7 +36,7 @@ export function CardResult({
                     itemType: "card",
                     itemId: item.id,
                     sellerId: item.sellerId,
-                    label: `Carta ${item.number} - ${kindLabel[item.kind]} ${item.variant}`,
+                    label: `Carta ${item.number} - ${kindLabel[item.kind]} ${variantDisplayLabel(item.variant)}`,
                     unitPrice: item.price,
                     quantity: 1,
                     maxQuantity: availableQuantity(item),

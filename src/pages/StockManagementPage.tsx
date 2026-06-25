@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Save, Trash2 } from "lucide-react";
-import { getColorOptions, getKindOptions, isKnownCromerosCardNumber } from "../data/cromerosCatalog";
+import { getColorOptions, getKindOptions, isKnownCromerosCardNumber, variantDisplayLabel } from "../data/cromerosCatalog";
 import type { CardKind, CardStock, Product } from "../lib/types";
 import { availableQuantity, formatMoney, kindLabel, parseCardList } from "../lib/helpers";
 import { SEARCH_FILTERS } from "../lib/limits";
@@ -267,7 +267,7 @@ export function StockManagementPage({
                 {getCardKindOptions(item).map((kind) => <option key={kind} value={kind}>{kindLabel[kind]}</option>)}
               </select>
               <select value={item.variant} onChange={(event) => updateCard(item.id, { variant: event.target.value })}>
-                {getCardColorOptions(item).map((variant) => <option key={variant} value={variant}>{variant}</option>)}
+                {getCardColorOptions(item).map((variant) => <option key={variant} value={variant}>{variantDisplayLabel(variant)}</option>)}
               </select>
               <input type="number" min={item.reserved} value={item.quantity} onChange={(event) => updateCard(item.id, { quantity: Math.max(0, Number(event.target.value)) })} title={item.reserved > 0 ? `${item.reserved} reservadas` : undefined} />
               <input type="number" min={0} value={item.price} onChange={(event) => updateCard(item.id, { price: Math.max(0, Number(event.target.value)) })} />

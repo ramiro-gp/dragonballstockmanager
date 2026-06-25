@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { Archive, Boxes, CircleDollarSign, Plus, Save, Trash2, WalletCards, X } from "lucide-react";
 import type { CardStock, DeliveryStatus, Product, Sale, SaleLine, SaleStatus } from "../lib/types";
 import { availableProductQuantity, availableQuantity, formatMoney, kindLabel, paidTotal, statusLabel } from "../lib/helpers";
+import { variantDisplayLabel } from "../data/cromerosCatalog";
 import { sortCardStock } from "../lib/sorting";
 import { Metric } from "../components/shared/Metric";
 
@@ -76,7 +77,7 @@ export function SalesPage({
       itemType: "card",
       itemId: item.id,
       sellerId: item.sellerId,
-      label: `Carta ${item.number} - ${kindLabel[item.kind]} ${item.variant}`,
+      label: `Carta ${item.number} - ${kindLabel[item.kind]} ${variantDisplayLabel(item.variant)}`,
       unitPrice: item.price,
       finalUnitPrice: item.price,
       quantity: 1,
@@ -229,7 +230,7 @@ export function SalesPage({
             <span>Agregar carta</span>
             <select defaultValue="" onChange={(event) => { addManualCard(event.target.value); event.currentTarget.value = ""; }}>
               <option value="" disabled>Elegir carta</option>
-              {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {item.variant}</option>)}
+              {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {variantDisplayLabel(item.variant)}</option>)}
             </select>
           </label>
           <label className="field">
@@ -289,7 +290,7 @@ export function SalesPage({
                 <span>Agregar otra carta</span>
                 <select defaultValue="" onChange={(event) => { void addStockLine(sale, event.target.value); event.currentTarget.value = ""; }} disabled={isSavingSale}>
                   <option value="" disabled>Elegir carta</option>
-                  {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {item.variant}</option>)}
+                  {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {variantDisplayLabel(item.variant)}</option>)}
                 </select>
               </label>
               <label className="field">
