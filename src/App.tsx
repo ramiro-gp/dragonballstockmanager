@@ -1582,15 +1582,16 @@ function BalanceAdjustmentModal({
   onSave: (input: Omit<BalanceAdjustment, "id" | "sellerId">) => Promise<void>;
 }) {
   const [type, setType] = useState<"income" | "expense">("income");
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState("0");
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
 
   async function save() {
-    if (!amount) return;
+    const parsedAmount = parseMoneyInput(amount);
+    if (!parsedAmount) return;
     setSaving(true);
-    await onSave({ type, amount, note, date });
+    await onSave({ type, amount: parsedAmount, note, date });
     setSaving(false);
   }
 
@@ -1618,7 +1619,7 @@ function BalanceAdjustmentModal({
           </div>
           <label className="field">
             <span>Monto</span>
-            <input type="number" min={0} value={amount} onChange={(event) => setAmount(Math.max(0, Number(event.target.value)))} />
+            <input type="number" min={0} value={amount} onChange={(event) => setAmount(normalizeMoneyInput(event.target.value))} />
           </label>
           <label className="field">
             <span>Fecha</span>
@@ -1631,7 +1632,7 @@ function BalanceAdjustmentModal({
         </div>
         <div className="modal-actions">
           <button className="secondary-button compact" onClick={onClose}>Cancelar</button>
-          <button className="primary-button compact" disabled={!amount || saving} onClick={save}>
+          <button className="primary-button compact" disabled={!parseMoneyInput(amount) || saving} onClick={save}>
             {saving ? "Guardando..." : "Guardar movimiento"}
           </button>
         </div>
@@ -1661,6 +1662,21 @@ function BalanceAdjustmentModal({
       </section>
     </div>
   );
+}
+
+function normalizeMoneyInput(value: string) {
+  if (value === "") return "";
+  const normalized = value.replace(",", ".");
+  const [rawInteger, ...rawDecimals] = normalized.split(".");
+  const integerDigits = rawInteger.replace(/\D/g, "");
+  const decimalDigits = rawDecimals.join("").replace(/\D/g, "");
+  const integer = (integerDigits || "0").replace(/^0+(?=\d)/, "");
+  return rawDecimals.length ? `${integer}.${decimalDigits}` : integer;
+}
+
+function parseMoneyInput(value: string) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
 function upsertMainSeller(current: Seller[], seller: Seller): Seller[] {

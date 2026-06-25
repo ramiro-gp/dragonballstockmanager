@@ -41,6 +41,7 @@ export function StockManagementPage({
   const [savedMessage, setSavedMessage] = useState("");
   const [expansionFilter, setExpansionFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
+  const [variantFilter, setVariantFilter] = useState("");
   const [cardQuery, setCardQuery] = useState("");
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [cardPage, setCardPage] = useState(1);
@@ -50,7 +51,7 @@ export function StockManagementPage({
   useEffect(() => setDraftStock(stock), [stock]);
   useEffect(() => setDraftProducts(products), [products]);
   useEffect(() => setSelectedCardIds((current) => current.filter((id) => draftStock.some((item) => item.id === id))), [draftStock]);
-  useEffect(() => setCardPage(1), [expansionFilter, kindFilter, cardQuery]);
+  useEffect(() => setCardPage(1), [expansionFilter, kindFilter, variantFilter, cardQuery]);
 
   const cardsDirty = useMemo(() => JSON.stringify(draftStock) !== JSON.stringify(stock), [draftStock, stock]);
   const productsDirty = useMemo(() => JSON.stringify(draftProducts) !== JSON.stringify(products), [draftProducts, products]);
@@ -59,13 +60,18 @@ export function StockManagementPage({
   const availableCardItems = availableCards.length;
   const availableCardUnits = availableCards.reduce((sum, available) => sum + available, 0);
   const queryNumbers = parseCardList(cardQuery);
+  const variantFilterOptions = useMemo(
+    () => Array.from(new Set(draftStock.map((item) => item.variant))).sort((a, b) => variantDisplayLabel(a).localeCompare(variantDisplayLabel(b))),
+    [draftStock],
+  );
   const visibleStock = useMemo(
     () => [...draftStock]
       .filter((item) => !expansionFilter || item.expansion === expansionFilter)
       .filter((item) => !kindFilter || item.kind === kindFilter)
+      .filter((item) => !variantFilter || item.variant === variantFilter)
       .filter((item) => !queryNumbers.length || queryNumbers.includes(item.number.toUpperCase()))
       .sort(sortCardStock),
-    [draftStock, expansionFilter, kindFilter, queryNumbers],
+    [draftStock, expansionFilter, kindFilter, queryNumbers, variantFilter],
   );
   const visibleStockPage = visibleStock.slice((cardPage - 1) * cardPageSize, cardPage * cardPageSize);
   const sortedProducts = useMemo(() => [...draftProducts].sort((a, b) => a.name.localeCompare(b.name)), [draftProducts]);
@@ -229,6 +235,13 @@ export function StockManagementPage({
                 <option value="comun">{kindLabel.comun}</option>
                 <option value="fluor">{kindLabel.fluor}</option>
                 <option value="holo">{kindLabel.holo}</option>
+              </select>
+            </label>
+            <label className="field compact-field">
+              <span>Color variante</span>
+              <select value={variantFilter} onChange={(event) => setVariantFilter(event.target.value)}>
+                <option value="">Todas</option>
+                {variantFilterOptions.map((variant) => <option key={variant} value={variant}>{variantDisplayLabel(variant)}</option>)}
               </select>
             </label>
             <button className="danger-button compact" onClick={subtractSelectedCards} disabled={!selectedCardIds.length || savingCards}>

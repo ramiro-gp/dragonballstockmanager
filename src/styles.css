@@ -912,8 +912,9 @@ select:focus-visible {
 }
 
 .view-toggle button.active {
-  background: var(--panel);
-  color: var(--text);
+  background: var(--orange);
+  color: white;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--orange) 24%, transparent);
 }
 
 .app-footer {
@@ -1334,8 +1335,9 @@ textarea.input {
 }
 
 .segmented button.active {
-  background: var(--panel);
-  color: var(--text);
+  background: var(--orange);
+  color: white;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--orange) 24%, transparent);
 }
 
 .preview-grid {
@@ -1806,21 +1808,34 @@ textarea.input {
   padding: 0.8rem;
 }
 
+.copy-row > div {
+  display: grid;
+  grid-template-columns: minmax(56px, 88px) minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
 .copy-row.no-action {
   grid-template-columns: 1fr;
 }
 
 .copy-row span {
-  display: block;
   color: var(--muted);
   font-size: 0.76rem;
   font-weight: 800;
 }
 
 .copy-row strong {
-  display: block;
-  margin-top: 0.15rem;
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .copy-row,
+  .copy-row > div {
+    grid-template-columns: 1fr;
+  }
 }
 
 .seller-invite,
@@ -1841,11 +1856,14 @@ textarea.input {
   display: grid;
   place-items: center;
   background: rgb(0 0 0 / 0.54);
+  overflow-y: auto;
   padding: 1rem;
 }
 
 .modal-panel {
   width: min(760px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -1860,6 +1878,10 @@ textarea.input {
 
 .balance-modal .balance-adjust-grid {
   grid-template-columns: 1fr;
+}
+
+.balance-modal {
+  overscroll-behavior: contain;
 }
 
 .balance-modal-note {
