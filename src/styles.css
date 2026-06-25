@@ -2347,7 +2347,7 @@ textarea.input {
   }
 
   .footer-main {
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 360px) auto;
+    grid-template-columns: minmax(0, 1fr) auto minmax(260px, 360px);
     align-items: center;
   }
 
@@ -2356,7 +2356,13 @@ textarea.input {
   }
 
   .vendor-footer-action {
-    justify-content: flex-end;
+    grid-column: 2;
+    justify-content: center;
+  }
+
+  .footer-actions.donation-actions {
+    grid-column: 3;
+    justify-self: end;
   }
 
   .publish-hero {

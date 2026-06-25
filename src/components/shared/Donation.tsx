@@ -4,6 +4,7 @@ const mercadoPagoData = {
   alias: import.meta.env.VITE_MP_ALIAS || "Configurar alias",
   cvu: import.meta.env.VITE_MP_CVU || "Configurar CVU",
   holder: import.meta.env.VITE_MP_HOLDER || "Configurar titular",
+  donationUrl: getMercadoPagoDonationUrl(import.meta.env.VITE_MP_DONATION_URL),
 };
 
 export function Donation() {
@@ -32,6 +33,7 @@ export function Donation() {
               <button className="ghost-icon" onClick={() => setOpen(false)} aria-label="Cerrar">X</button>
             </div>
             <div className="mt-4 space-y-3">
+              <MercadoPagoLink />
               <CopyRow label="Alias" value={mercadoPagoData.alias} />
               <CopyRow label="CVU" value={mercadoPagoData.cvu} />
               <InfoRow label="Titular" value={mercadoPagoData.holder} />
@@ -59,6 +61,7 @@ export function MercadoPagoButton({ className = "small-button" }: { className?: 
               <button className="ghost-icon" onClick={() => setOpen(false)} aria-label="Cerrar">X</button>
             </div>
             <div className="mt-4 space-y-3">
+              <MercadoPagoLink />
               <CopyRow label="Alias" value={mercadoPagoData.alias} />
               <CopyRow label="CVU" value={mercadoPagoData.cvu} />
               <InfoRow label="Titular" value={mercadoPagoData.holder} />
@@ -67,6 +70,18 @@ export function MercadoPagoButton({ className = "small-button" }: { className?: 
         </div>
       )}
     </>
+  );
+}
+
+function MercadoPagoLink() {
+  if (!mercadoPagoData.donationUrl) {
+    return <button className="small-button" disabled>Configurá el link de Mercado Pago</button>;
+  }
+
+  return (
+    <a className="small-button" href={mercadoPagoData.donationUrl} target="_blank" rel="noopener noreferrer">
+      Abrir MP
+    </a>
   );
 }
 
@@ -90,6 +105,16 @@ function CopyRow({ label, value }: { label: string; value: string }) {
       </button>
     </div>
   );
+}
+
+function getMercadoPagoDonationUrl(value: string | undefined) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

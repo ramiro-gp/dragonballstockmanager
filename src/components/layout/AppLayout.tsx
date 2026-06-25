@@ -24,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.52.0";
+const APP_VERSION = "v0.53.0";
 
 export function AppLayout({
   children,
@@ -191,7 +191,6 @@ function AppFooter({ navigate }: { navigate: (route: Route) => void }) {
       <div className="footer-main">
         <div className="footer-identity">
           <Brand compact />
-          <strong>Dragon Ball Stock Manager</strong>
         </div>
         <div className="footer-actions donation-actions">
           <span>Ayudame con una donación</span>
@@ -203,7 +202,7 @@ function AppFooter({ navigate }: { navigate: (route: Route) => void }) {
         </div>
       </div>
       <div className="footer-legal">
-        <p>© Todos los derechos reservados. Desarrollado por <a href="https://ramirogp.me" target="_blank" rel="noopener noreferrer">Ramiro</a>.</p>
+        <p>© Todos los derechos reservados. Desarrollado por <a href="https://ramirogp.me" target="_blank" rel="noopener noreferrer">Ramiro García</a>.</p>
         <span className="app-version">{APP_VERSION}</span>
       </div>
     </footer>
