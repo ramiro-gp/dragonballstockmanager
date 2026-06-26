@@ -69,12 +69,12 @@ const variantRules: Record<string, VariantRule> = {
   "Guerreros Legendarios 1": {
     kinds: ["comun", "holo"],
     fluor: [],
-    holo: ["Patrones", "Rojo", "Amarillo", "Plateado", "Verde", "Azul", "Violeta", "Turquesa"],
+    holo: ["Patrones", "Rojo", "Amarillo", "Plateado", "Verde", "Azul", "Violeta", "Turquesa", "Bronce"],
   },
   "Guerreros Legendarios 2": {
     kinds: ["fluor", "holo"],
     fluor: ["Rosa", "Naranja", "Verde"],
-    holo: ["Rojo", "Azul", "Verde", "Amarillo", "Turquesa", "Violeta"],
+    holo: ["Rojo", "Azul", "Verde", "Amarillo", "Turquesa", "Violeta", "Bronce"],
   },
   "Super Batalla 1": {
     kinds: ["fluor", "holo"],
@@ -89,17 +89,17 @@ const variantRules: Record<string, VariantRule> = {
   GT: {
     kinds: ["fluor", "holo"],
     fluor: ["Amarillo", "Naranja", "Verde", "Rosa"],
-    holo: ["Verde", "Violeta", "Celeste", "Rojo"],
+    holo: ["Verde", "Violeta", "Celeste", "Rojo", "Bronce"],
   },
   "Batalla Final 1": {
     kinds: ["fluor", "holo"],
     fluor: ["Amarillo", "Naranja", "Verde", "Rosa"],
-    holo: ["Verde", "Violeta", "Celeste", "Rojo", "Plateado", "Azul", "Patrones"],
+    holo: ["Verde", "Violeta", "Celeste", "Rojo", "Plateado", "Azul", "Patrones", "Bronce"],
   },
   "Batalla Final 2": {
     kinds: ["fluor", "holo"],
     fluor: ["Amarillo", "Naranja", "Verde", "Rosa"],
-    holo: ["Verde", "Violeta", "Celeste", "Rojo", "Plateado", "Azul", "Patrones"],
+    holo: ["Verde", "Violeta", "Celeste", "Rojo", "Plateado", "Azul", "Patrones", "Bronce"],
   },
 };
 

@@ -38,6 +38,7 @@ export function StockManagerPage({
   const [prices, setPrices] = useState<Record<CardKind, number>>(() => readPublishPrices(sellerId, settings));
   const [cardsPurchaseCost, setCardsPurchaseCost] = useState(0);
   const [variantDrafts, setVariantDrafts] = useState<Record<string, VariantDraft>>({});
+  const [bulkKind, setBulkKind] = useState<CardKind>("holo");
   const [bulkVariant, setBulkVariant] = useState("");
   const [publishedMessage, setPublishedMessage] = useState("");
   const [publishError, setPublishError] = useState("");
@@ -102,6 +103,11 @@ export function StockManagerPage({
     [variantDraftList],
   );
   const bulkVariantValue = bulkVariantOptions.includes(bulkVariant) ? bulkVariant : bulkVariantOptions[0] ?? "";
+  const bulkKindOptions = useMemo(
+    () => Array.from(new Set(variantDraftList.flatMap((row) => getKindOptions(row.number)))),
+    [variantDraftList],
+  );
+  const bulkKindValue = bulkKindOptions.includes(bulkKind) ? bulkKind : bulkKindOptions[0] ?? "holo";
 
   function updateVariantRow(key: string, patch: Partial<VariantDraft>) {
     setPublishedMessage("");
@@ -133,6 +139,30 @@ export function StockManagerPage({
         Object.entries(current).map(([key, row]) => {
           const options = getColorOptions(row.number, row.kind);
           return [key, options.includes(bulkVariantValue) ? { ...row, variant: bulkVariantValue } : row];
+        }),
+      ),
+    );
+  }
+
+  function applyBulkKind() {
+    if (!bulkKindValue) return;
+    setPublishedMessage("");
+    setPublishError("");
+    setVariantDrafts((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([key, row]) => {
+          const kindOptions = getKindOptions(row.number);
+          if (!kindOptions.includes(bulkKindValue)) return [key, row];
+          const colorOptions = getColorOptions(row.number, bulkKindValue);
+          return [
+            key,
+            {
+              ...row,
+              kind: bulkKindValue,
+              variant: colorOptions.includes(row.variant) ? row.variant : colorOptions[0] ?? "Base",
+              price: prices[bulkKindValue],
+            },
+          ];
         }),
       ),
     );
@@ -364,6 +394,15 @@ export function StockManagerPage({
               <span>{variantRows.length} filas</span>
             </div>
             <div className="bulk-variant-tool">
+              <label className="field compact-field">
+                <span>Tipo masivo</span>
+                <select value={bulkKindValue} onChange={(event) => setBulkKind(event.target.value as CardKind)} disabled={!bulkKindOptions.length}>
+                  {bulkKindOptions.map((option) => <option key={option} value={option}>{kindText(option)}</option>)}
+                </select>
+              </label>
+              <button className="secondary-button compact" onClick={applyBulkKind} disabled={!bulkKindOptions.length}>
+                Aplicar tipo a todas compatibles
+              </button>
               <label className="field compact-field">
                 <span>Variante masiva</span>
                 <select value={bulkVariantValue} onChange={(event) => setBulkVariant(event.target.value)} disabled={!bulkVariantOptions.length}>
