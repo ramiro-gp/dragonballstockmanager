@@ -1,6 +1,6 @@
 import { BarChart3, CheckCircle2, ClipboardCheck, Link, MessageCircle, PackageCheck, SearchCheck, WalletCards } from "lucide-react";
 
-const sellerContactWhatsapp = import.meta.env.VITE_SELLER_CONTACT_WHATSAPP || "5491100000000";
+const sellerContactWhatsapp = import.meta.env.VITE_SELLER_CONTACT_WHATSAPP || "5491151354489";
 
 export function SellPage() {
   const benefits = [
@@ -23,7 +23,7 @@ export function SellPage() {
           </p>
           <a
             className="primary-button sell-contact"
-            href={`https://wa.me/${sellerContactWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent("Che Rama, quiero ser vendedor en Dragon Ball Stock Manager.")}`}
+            href={`https://wa.me/${sellerContactWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent("Hola Rama, quiero vender mis cosas en Dragon Ball Stock Manager.")}`}
             target="_blank"
             rel="noopener noreferrer"
           >
