@@ -66,7 +66,20 @@ function PlanCard({ title, price, text, highlighted = false }: { title: string; 
   return (
     <article className={highlighted ? "plan-card highlighted" : "plan-card"}>
       <span>{title}</span>
-      <strong>{price}</strong>
+
+      <div className="flex justify-between items-center">
+        <strong>{price}</strong>
+        
+        <a
+            className="primary-button"
+            href={`https://wa.me/${sellerContactWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent("Hola Rama, quiero vender mis cosas en Dragon Ball Stock Manager.")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            +
+        </a>
+      </div>
+
       <p>{text}</p>
     </article>
   );
