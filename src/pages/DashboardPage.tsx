@@ -1,16 +1,18 @@
-import { Check, CircleDollarSign, ClipboardList, CreditCard, Scale, Sparkles } from "lucide-react";
+import { Check, CircleDollarSign, ClipboardList, CreditCard, PackageCheck, Scale, Sparkles, Truck } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { BalanceAdjustment, CardStock, Purchase, Sale } from "../lib/types";
-import { availableQuantity, formatMoney, saleTotal } from "../lib/helpers";
+import type { BalanceAdjustment, CardStock, Product, Purchase, Sale } from "../lib/types";
+import { availableProductQuantity, availableQuantity, formatMoney, saleTotal } from "../lib/helpers";
 import { Metric } from "../components/shared/Metric";
 
 export function DashboardPage({
   stock,
+  products,
   sales,
   purchases,
   adjustments,
 }: {
   stock: CardStock[];
+  products: Product[];
   sales: Sale[];
   purchases: Purchase[];
   adjustments: BalanceAdjustment[];
@@ -21,8 +23,9 @@ export function DashboardPage({
   const spent = purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0);
   const manualIncome = adjustments.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
   const manualExpense = adjustments.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
-  const cardsBought = purchases.reduce((sum, purchase) => sum + purchase.totalCards, 0);
   const cardsAvailable = stock.reduce((sum, item) => sum + availableQuantity(item), 0);
+  const productsAvailable = products.reduce((sum, item) => sum + availableProductQuantity(item), 0);
+  const pendingDelivery = sales.filter((sale) => sale.status !== "cancelada" && sale.deliveryStatus === "delivery_pending").length;
   const balance = revenue + manualIncome - spent - manualExpense;
 
   const salesData = getCurrentMonthSalesData(confirmed);
@@ -41,11 +44,11 @@ export function DashboardPage({
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-5">
-        <Metric icon={CircleDollarSign} label="Ventas confirmadas" value={formatMoney(revenue + manualIncome)} />
-        <Metric icon={CreditCard} label="Compras y gastos" value={formatMoney(spent + manualExpense)} />
+        <Metric icon={CircleDollarSign} label="Total ingresos" value={formatMoney(revenue + manualIncome)} />
+        <Metric icon={CreditCard} label="Total gastos" value={formatMoney(spent + manualExpense)} />
         <Metric icon={Scale} label="Balance" value={formatMoney(balance)} />
         <Metric icon={Sparkles} label="Cartas disponibles" value={String(cardsAvailable)} />
-        <Metric icon={Check} label="Cartas compradas" value={String(cardsBought)} />
+        <Metric icon={PackageCheck} label="Productos disponibles" value={String(productsAvailable)} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
@@ -58,9 +61,10 @@ export function DashboardPage({
             <h3>Pedidos</h3>
             <span>Resumen operativo</span>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
             <Metric icon={ClipboardList} label="Reservas activas" value={String(reserved.length)} />
             <Metric icon={Check} label="Pedidos cerrados" value={String(confirmed.length)} />
+            <Metric icon={Truck} label="Pendientes de envío" value={String(pendingDelivery)} />
           </div>
         </section>
       </div>

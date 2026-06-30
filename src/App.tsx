@@ -88,6 +88,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [route]);
+
+  useEffect(() => {
     if (!supabase) {
       setAuthLoading(false);
       return;
@@ -1368,7 +1372,7 @@ export function App() {
             />
           )}
           {!sellerInactive && isLoggedIn && visibleRoute === "/panel" && (
-            <DashboardPage stock={sellerStock} sales={sellerSales} purchases={sellerPurchases} adjustments={sellerBalanceAdjustments} />
+            <DashboardPage stock={sellerStock} products={sellerProducts} sales={sellerSales} purchases={sellerPurchases} adjustments={sellerBalanceAdjustments} />
           )}
           {!sellerInactive && isLoggedIn && visibleRoute === "/ajustes" && (
             <SettingsPage

@@ -202,7 +202,7 @@ export function SalesPage({
           <p className="eyebrow">Historial</p>
           <h2 className="panel-title">Ventas y pedidos</h2>
         </div>
-        <div className="view-toggle">
+        <div className="view-toggle sales-view-toggle">
           <button className={clsx(view === "active" && "active")} onClick={() => setView("active")}>Activos</button>
           <button className={clsx(view === "archived" && "active")} onClick={() => setView("archived")}>Archivados</button>
         </div>
@@ -306,7 +306,7 @@ export function SalesPage({
               {sale.status === "cancelada" ? (
                 <p className="text-sm text-[var(--muted)]">Venta cancelada, sin seguimiento de entrega activo.</p>
               ) : (
-                <div className="view-toggle w-fit">
+                <div className="view-toggle delivery-view-toggle">
                   <button className={clsx(!sale.deliveryStatus && "active")} onClick={() => void setDeliveryStatus(sale, undefined)} disabled={isSavingSale}>Sin estado</button>
                   {deliveryStatuses.map((status) => (
                     <button key={status} className={clsx(sale.deliveryStatus === status && "active")} onClick={() => void setDeliveryStatus(sale, status)} disabled={isSavingSale}>
