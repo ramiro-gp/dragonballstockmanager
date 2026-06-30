@@ -24,7 +24,7 @@ import { formatMoney } from "../../lib/helpers";
 import { Donation, MercadoPagoButton } from "../shared/Donation";
 import { Brand } from "./Brand";
 
-const APP_VERSION = "v0.64.4";
+const APP_VERSION = "v0.64.5";
 
 export function AppLayout({
   children,
@@ -65,7 +65,7 @@ export function AppLayout({
     { route: "/panel", label: "Panel", icon: BarChart3 },
     { route: "/carga", label: "Publicar", icon: PackagePlus },
     { route: "/gestion-stock", label: "Gestionar", icon: FilePenLine },
-    { route: "/ventas", label: "Historial", icon: ClipboardList },
+    { route: "/ventas", label: "Mis ventas", icon: ClipboardList },
     { route: "/ajustes", label: "Ajustes", icon: Settings },
     { route: "/crear-vendedor", label: "Crear vendedor", icon: UserPlus },
   ] as const;
@@ -130,7 +130,7 @@ export function AppLayout({
                 title={sidebarCollapsed ? item.label : undefined}
               >
                 <item.icon size={19} />
-                <span>{item.label}</span>
+                <span className="nav-label">{item.label}</span>
               </button>
             ))}
           </nav>
@@ -156,7 +156,7 @@ export function AppLayout({
             ] as const).map((item) => (
               <button key={item.route} onClick={() => go(item.route)} className={clsx("mobile-menu-item", route === item.route && "active", "primary" in item && item.primary && "primary")}>
                 <item.icon size={18} />
-                {item.label}
+                <span className="nav-label">{item.label}</span>
               </button>
             ))}
           </div>

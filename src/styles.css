@@ -239,6 +239,11 @@ select:focus-visible {
   color: var(--muted);
 }
 
+.nav-label {
+  display: inline-block;
+  white-space: nowrap;
+}
+
 .nav-button:hover,
 .nav-button.active,
 .mobile-nav.active {

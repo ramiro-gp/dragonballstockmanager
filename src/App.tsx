@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import clsx from "clsx";
 import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
+import { Pagination } from "./components/shared/Pagination";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
 import { availableProductQuantity, availableQuantity, cartTotal, formatMoney, saleInventoryState, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { compressProductImage } from "./lib/images";
@@ -1586,6 +1587,11 @@ function BalanceAdjustmentModal({
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const historyPageSize = 8;
+  const historyPages = Math.max(1, Math.ceil(adjustments.length / historyPageSize));
+  const safeHistoryPage = Math.min(historyPage, historyPages);
+  const visibleAdjustments = adjustments.slice((safeHistoryPage - 1) * historyPageSize, safeHistoryPage * historyPageSize);
 
   async function save() {
     const parsedAmount = parseMoneyInput(amount);
@@ -1648,7 +1654,7 @@ function BalanceAdjustmentModal({
               <span>Monto</span>
               <span>Nota</span>
             </div>
-            {adjustments.slice(0, 8).map((item) => (
+            {visibleAdjustments.map((item) => (
               <div key={item.id} className="balance-history-row">
                 <span>{item.date}</span>
                 <span>{item.type === "income" ? "Ingreso" : "Gasto"}</span>
@@ -1658,6 +1664,7 @@ function BalanceAdjustmentModal({
             ))}
             {!adjustments.length && <p className="empty">Todavía no hay movimientos de balance.</p>}
           </div>
+          <Pagination page={safeHistoryPage} pageSize={historyPageSize} total={adjustments.length} onPageChange={setHistoryPage} />
         </div>
       </section>
     </div>
