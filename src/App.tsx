@@ -1611,7 +1611,7 @@ function mapSupabaseSale(row: {
     itemType: line.item_type === "product" ? "product" : "card",
     itemId: line.stock_product_id ?? line.stock_card_id ?? line.id,
     sellerId: row.seller_id,
-    label: line.product_name ?? `Carta ${line.card_number ?? ""} - ${line.variant_type ?? ""} ${line.color_variant ?? ""}`.trim(),
+    label: line.product_name ?? `NÂ° ${line.card_number ?? ""} - ${line.variant_type ?? ""} ${line.color_variant ?? ""}`.trim(),
     unitPrice: line.unit_price_ars,
     finalUnitPrice: line.unit_price_ars,
     quantity: line.quantity,
@@ -1675,9 +1675,9 @@ function saleLineToSupabaseInsert(saleId: string, sellerId: string, line: SaleLi
 
 function saleLineToRpcPayload(line: SaleLine) {
   const isProduct = line.itemType === "product";
-  const cardNumber = isProduct ? null : Number.parseInt(line.label.match(/Carta\s+(\d+)/i)?.[1] ?? "", 10);
+  const cardNumber = isProduct ? null : Number.parseInt(line.label.match(/(?:Carta|N°)\s+(\d+)/i)?.[1] ?? "", 10);
   const cardDescription = line.label
-    .replace(/Carta\s+\d+/i, "")
+    .replace(/(?:Carta|N°)\s+\d+/i, "")
     .replace(/[Â·-]/g, " ")
     .trim();
   const [variantType = "", ...colorParts] = cardDescription.split(/\s+/).filter(Boolean);

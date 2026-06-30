@@ -6,6 +6,7 @@ import { availableProductQuantity, availableQuantity, formatMoney, kindLabel, pa
 import { variantDisplayLabel } from "../data/cromerosCatalog";
 import { sortCardStock } from "../lib/sorting";
 import { Metric } from "../components/shared/Metric";
+import { SearchableSelect } from "../components/shared/SearchableSelect";
 
 const pageSize = 8;
 const deliveryLabels: Record<DeliveryStatus, string> = {
@@ -61,6 +62,16 @@ export function SalesPage({
 
   const sortedStock = useMemo(() => [...stock].filter((item) => availableQuantity(item) > 0).sort(sortCardStock), [stock]);
   const sortedProducts = useMemo(() => [...products].filter((item) => availableProductQuantity(item) > 0).sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const cardOptions = useMemo(() => sortedStock.map((item) => ({
+    value: item.id,
+    label: cardOptionLabel(item),
+    hint: `${formatMoney(item.price)} · ${availableQuantity(item)} disponibles`,
+  })), [sortedStock]);
+  const productOptions = useMemo(() => sortedProducts.map((product) => ({
+    value: product.id,
+    label: product.name,
+    hint: `${formatMoney(product.price)} · ${availableProductQuantity(product)} disponibles`,
+  })), [sortedProducts]);
   const visibleSales = sales.filter((sale) => view === "archived" ? Boolean(sale.archivedAt) : !sale.archivedAt);
   const pageCount = Math.max(1, Math.ceil(visibleSales.length / pageSize));
   const pagedSales = visibleSales.slice((page - 1) * pageSize, page * pageSize);
@@ -104,7 +115,7 @@ export function SalesPage({
       itemType: "card",
       itemId: item.id,
       sellerId: item.sellerId,
-      label: `Carta ${item.number} - ${kindLabel[item.kind]} ${variantDisplayLabel(item.variant)}`,
+      label: cardOptionLabel(item),
       unitPrice: item.price,
       finalUnitPrice: item.price,
       quantity: 1,
@@ -285,17 +296,11 @@ export function SalesPage({
           <p className="field-hint manual-stock-check">La venta manual se guarda como confirmada y descuenta el stock seleccionado.</p>
           <label className="field">
             <span>Agregar carta</span>
-            <select defaultValue="" onChange={(event) => { addManualCard(event.target.value); event.currentTarget.value = ""; }}>
-              <option value="" disabled>Elegir carta</option>
-              {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {variantDisplayLabel(item.variant)}</option>)}
-            </select>
+            <SearchableSelect options={cardOptions} placeholder="Buscar por número, variante o color" onSelect={addManualCard} />
           </label>
           <label className="field">
             <span>Agregar producto</span>
-            <select defaultValue="" onChange={(event) => { addManualProduct(event.target.value); event.currentTarget.value = ""; }}>
-              <option value="" disabled>Elegir producto</option>
-              {sortedProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-            </select>
+            <SearchableSelect options={productOptions} placeholder="Buscar producto" onSelect={addManualProduct} />
           </label>
           <label className="field manual-note"><span>Nota</span><input value={manualNote} onChange={(event) => setManualNote(event.target.value)} placeholder="Ej: venta en plaza, precio arreglado por WhatsApp..." /></label>
         </div>
@@ -362,17 +367,11 @@ export function SalesPage({
             <div className="sale-add-grid mt-4">
               <label className="field">
                 <span>Agregar otra carta</span>
-                <select defaultValue="" onChange={(event) => { void addStockLine(sale, event.target.value); event.currentTarget.value = ""; }} disabled={isSavingSale}>
-                  <option value="" disabled>Elegir carta</option>
-                  {sortedStock.map((item) => <option key={item.id} value={item.id}>Carta {item.number} - {kindLabel[item.kind]} {variantDisplayLabel(item.variant)}</option>)}
-                </select>
+                <SearchableSelect options={cardOptions} placeholder="Buscar por número, variante o color" disabled={isSavingSale} onSelect={(value) => void addStockLine(sale, value)} />
               </label>
               <label className="field">
                 <span>Agregar otro producto</span>
-                <select defaultValue="" onChange={(event) => { void addProductLine(sale, event.target.value); event.currentTarget.value = ""; }} disabled={isSavingSale}>
-                  <option value="" disabled>Elegir producto</option>
-                  {sortedProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-                </select>
+                <SearchableSelect options={productOptions} placeholder="Buscar producto" disabled={isSavingSale} onSelect={(value) => void addProductLine(sale, value)} />
               </label>
             </div>
 
@@ -434,4 +433,8 @@ export function SalesPage({
       )}
     </div>
   );
+}
+
+function cardOptionLabel(item: CardStock) {
+  return `N° ${item.number} - ${kindLabel[item.kind]} ${variantDisplayLabel(item.variant)}`;
 }

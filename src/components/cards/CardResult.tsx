@@ -17,7 +17,7 @@ export function CardResult({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="eyebrow">{items[0].expansion}</p>
-          <h3 className="card-number">Carta {items[0].number}</h3>
+          <h3 className="card-number">N° {items[0].number}</h3>
         </div>
         {items[0].special && <span className="rare-badge">{items[0].special}</span>}
       </div>
@@ -36,7 +36,7 @@ export function CardResult({
                     itemType: "card",
                     itemId: item.id,
                     sellerId: item.sellerId,
-                    label: `Carta ${item.number} - ${kindLabel[item.kind]} ${variantDisplayLabel(item.variant)}`,
+                    label: `N° ${item.number} - ${kindLabel[item.kind]} ${variantDisplayLabel(item.variant)}`,
                     unitPrice: item.price,
                     quantity: 1,
                     maxQuantity: availableQuantity(item),
