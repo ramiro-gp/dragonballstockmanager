@@ -33,7 +33,7 @@ export function SalesPage({
   changeSaleDeliveryStatus: (saleId: string, status?: DeliveryStatus) => Promise<void> | void;
   updateSaleLine: (saleId: string, lineIndex: number, quantity: number, price: number) => void;
   saveSaleLines: (saleId: string, lines: SaleLine[]) => Promise<void> | void;
-  createManualSale: (input: { customerName: string; customerWhatsapp?: string; note?: string; date: string; lines: SaleLine[]; applyStock: boolean }) => Promise<void> | void;
+  createManualSale: (input: { customerName: string; customerWhatsapp?: string; note?: string; date: string; lines: SaleLine[] }) => Promise<boolean> | boolean;
   archiveSale: (saleId: string) => Promise<void> | void;
   deleteSale: (saleId: string) => Promise<void> | void;
 }) {
@@ -47,7 +47,6 @@ export function SalesPage({
   const [manualWhatsapp, setManualWhatsapp] = useState("");
   const [manualNote, setManualNote] = useState("");
   const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10));
-  const [manualApplyStock, setManualApplyStock] = useState(true);
   const [manualLines, setManualLines] = useState<SaleLine[]>([]);
 
   const sortedStock = useMemo(() => [...stock].filter((item) => availableQuantity(item) > 0).sort(sortCardStock), [stock]);
@@ -147,15 +146,18 @@ export function SalesPage({
   async function submitManualSale() {
     if (!manualLines.length) return;
     setSavingManualSale(true);
-    await createManualSale({
+    const saved = await createManualSale({
       customerName: manualName,
       customerWhatsapp: manualWhatsapp,
       note: manualNote,
       date: manualDate,
       lines: manualLines,
-      applyStock: manualApplyStock,
     });
     setSavingManualSale(false);
+    if (!saved) {
+      setFeedback("No pude cargar la venta manual. Revisá stock disponible o conexión.");
+      return;
+    }
     setManualName("");
     setManualWhatsapp("");
     setManualNote("");
@@ -222,10 +224,7 @@ export function SalesPage({
           <label className="field"><span>Cliente</span><input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="Nombre opcional" /></label>
           <label className="field"><span>WhatsApp</span><input value={manualWhatsapp} onChange={(event) => setManualWhatsapp(event.target.value)} placeholder="Opcional" /></label>
           <label className="field"><span>Fecha</span><input type="date" value={manualDate} onChange={(event) => setManualDate(event.target.value)} /></label>
-          <label className="check-row manual-stock-check">
-            <input type="checkbox" checked={manualApplyStock} onChange={(event) => setManualApplyStock(event.target.checked)} />
-            Descontar stock
-          </label>
+          <p className="field-hint manual-stock-check">La venta manual se guarda como confirmada y descuenta el stock seleccionado.</p>
           <label className="field">
             <span>Agregar carta</span>
             <select defaultValue="" onChange={(event) => { addManualCard(event.target.value); event.currentTarget.value = ""; }}>

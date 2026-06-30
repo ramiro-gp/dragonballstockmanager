@@ -862,9 +862,8 @@ export function App() {
     note?: string;
     date: string;
     lines: SaleLine[];
-    applyStock: boolean;
   }) {
-    if (!input.lines.length) return;
+    if (!input.lines.length) return false;
     const sale: Sale = {
       id: crypto.randomUUID(),
       orderNumber: `MAN-${Date.now().toString().slice(-6)}`,
@@ -874,7 +873,7 @@ export function App() {
       note: input.note,
       status: "confirmada",
       deliveryStatus: undefined,
-      stockApplied: input.applyStock,
+      stockApplied: true,
       createdAt: input.date || new Date().toISOString().slice(0, 10),
       statusChangedAt: input.date || new Date().toISOString().slice(0, 10),
       shippingPending: false,
@@ -885,28 +884,42 @@ export function App() {
 
     let nextStock = stock;
     let nextProducts = products;
-    if (sale.stockApplied) {
-      const inventory = applySaleInventoryTransition(nextStock, nextProducts, sale, "pendiente", sale.status);
-      if (!inventory.ok) {
-        notify("error", "No hay stock suficiente para cargar esa venta.");
-        return;
+    const inventory = applySaleInventoryTransition(nextStock, nextProducts, sale, "pendiente", sale.status);
+    if (!inventory.ok) {
+      notify("error", "No hay stock suficiente para cargar esa venta.");
+      return false;
+    }
+    nextStock = inventory.nextStock;
+    nextProducts = inventory.nextProducts;
+
+    if (supabase) {
+      const { data: rpcSaleId, error: rpcError } = await supabase.rpc("create_manual_sale", {
+        p_seller_id: sale.sellerId,
+        p_customer_name: sale.customerName,
+        p_customer_whatsapp: sale.customerWhatsapp,
+        p_customer_note: sale.note,
+        p_sale_date: sale.createdAt,
+        p_status: toSupabaseStatus(sale.status),
+        p_lines: sale.lines.map(saleLineToRpcPayload),
+        p_paid_amount: saleTotal(sale),
+      });
+
+      if (rpcError || !rpcSaleId) {
+        notify("error", "No pude cargar la venta manual. Corré el SQL create_manual_sale_v1 si todavía no lo hiciste.");
+        return false;
       }
-      nextStock = inventory.nextStock;
-      nextProducts = inventory.nextProducts;
-      setStock(nextStock);
-      setProducts(nextProducts);
+
+      await loadSellerInventoryFromSupabase(currentSeller.id);
+      await loadSellerSalesFromSupabase(currentSeller.id);
+      notify("success", "Venta manual cargada.");
+      return true;
     }
 
+    setStock(nextStock);
+    setProducts(nextProducts);
     setSales((current) => [sale, ...current]);
-    if (supabase) {
-      const saved = await insertSaleToSupabase(sale);
-      if (saved) await loadSellerSalesFromSupabase(currentSeller.id);
-    }
-    if (supabase && sale.stockApplied) {
-      await saveManagedCardsToSupabase(nextStock.filter((item) => item.sellerId === currentSeller.id));
-      await saveManagedProductsToSupabase(nextProducts.filter((item) => item.sellerId === currentSeller.id));
-    }
     notify("success", "Venta manual cargada.");
+    return true;
   }
 
   async function archiveSale(saleId: string) {
