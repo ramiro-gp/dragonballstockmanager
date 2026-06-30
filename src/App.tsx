@@ -4,7 +4,7 @@ import { getCurrentRoute, privateRoutes, type Route } from "./app/routes";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Pagination } from "./components/shared/Pagination";
 import { initialProducts, initialPurchases, initialSales, initialStock, sellers } from "./data/mockData";
-import { availableProductQuantity, availableQuantity, cartTotal, formatMoney, saleInventoryState, saleTotal, shouldApplyStock } from "./lib/helpers";
+import { availableProductQuantity, availableQuantity, cartTotal, formatMoney, saleInventoryState, saleItemsTotal, saleTotal, shouldApplyStock } from "./lib/helpers";
 import { compressProductImage } from "./lib/images";
 import { supabase } from "./lib/supabase";
 import type { BalanceAdjustment, CardKind, CardStock, CartLine, DeliveryStatus, Product, PublishCardInput, PublishProductInput, Purchase, Sale, SaleLine, SaleStatus, Seller, SellerProfilePatch, SellerSettings, Theme, ToastKind, ToastMessage } from "./lib/types";
@@ -76,6 +76,27 @@ export function App() {
   const spent = sellerPurchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0);
   const manualIncome = sellerBalanceAdjustments.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
   const manualExpense = sellerBalanceAdjustments.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
+  const balanceHistoryEntries: BalanceAdjustment[] = [
+    ...sellerBalanceAdjustments,
+    ...sellerSales
+      .filter((sale) => sale.status === "confirmada")
+      .map((sale) => ({
+        id: `sale-${sale.id}`,
+        sellerId: sale.sellerId,
+        type: "income" as const,
+        amount: saleTotal(sale),
+        note: `${sale.manual ? "Venta manual" : "Venta confirmada"} · ${sale.customerName}`,
+        date: sale.statusChangedAt ?? sale.createdAt,
+      })),
+    ...sellerPurchases.map((purchase) => ({
+      id: `purchase-${purchase.id}`,
+      sellerId: purchase.sellerId,
+      type: "expense" as const,
+      amount: purchase.totalSpent,
+      note: `Compra de lote · ${purchase.totalCards} cartas`,
+      date: purchase.date,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
   const visibleRoute = !isLoggedIn && privateRoutes.includes(route) ? "/login" : route;
   const sellerInactive = isLoggedIn && currentSeller.status === "inactive";
   const publicStockRouteVisible = visibleRoute === "/" || isSellerStockRoute(visibleRoute);
@@ -1092,6 +1113,8 @@ export function App() {
         stock_applied: sale.stockApplied,
         status_changed_at: sale.statusChangedAt ?? sale.createdAt,
         total_ars: saleTotal(sale),
+        customer_name: sale.customerName,
+        customer_whatsapp: sale.customerWhatsapp,
         customer_note: sale.note,
       })
       .eq("id", sale.id);
@@ -1099,6 +1122,19 @@ export function App() {
     await supabase.from("sale_lines").delete().eq("sale_id", sale.id);
     const rows = sale.lines.map((line) => saleLineToSupabaseInsert(sale.id, sale.sellerId, line));
     if (rows.length) await supabase.from("sale_lines").insert(rows);
+
+    await supabase.from("payments").delete().eq("sale_id", sale.id).eq("seller_id", sale.sellerId);
+    const paymentRows = sale.payments
+      .filter((payment) => payment.amount > 0)
+      .map((payment) => ({
+        id: payment.id,
+        seller_id: sale.sellerId,
+        sale_id: sale.id,
+        amount_ars: Math.max(0, payment.amount),
+        note: payment.note,
+        paid_at: payment.date || sale.createdAt,
+      }));
+    if (paymentRows.length) await supabase.from("payments").insert(paymentRows);
   }
 
   async function insertSaleToSupabase(sale: Sale) {
@@ -1251,6 +1287,30 @@ export function App() {
       await loadSellerSalesFromSupabase(currentSeller.id);
     }
   }
+
+  async function saveSaleDetails(
+    saleId: string,
+    patch: Pick<Sale, "customerName" | "customerWhatsapp" | "note" | "payments"> & { totalOverride?: number; lines?: SaleLine[] },
+  ) {
+    const sale = sales.find((item) => item.id === saleId);
+    if (!sale) return false;
+    const lines = patch.lines ?? sale.lines;
+    const itemTotal = saleItemsTotal({ lines });
+    const nextSale: Sale = {
+      ...sale,
+      lines,
+      customerName: patch.customerName.trim() || "Cliente sin nombre",
+      customerWhatsapp: patch.customerWhatsapp?.trim() || "",
+      note: patch.note?.trim() || "",
+      totalOverride: patch.totalOverride !== undefined && patch.totalOverride !== itemTotal ? Math.max(0, patch.totalOverride) : undefined,
+      payments: patch.payments.filter((payment) => payment.amount > 0),
+    };
+
+    setSales((current) => current.map((item) => item.id === saleId ? nextSale : item));
+    await persistSaleToSupabase(nextSale);
+    if (supabase) await loadSellerSalesFromSupabase(currentSeller.id);
+    return true;
+  }
   return (
     <div className={clsx("app", theme)}>
       <AppLayout
@@ -1365,6 +1425,7 @@ export function App() {
               changeSaleStatus={changeSaleStatus}
               updateSaleLine={updateSaleLine}
               saveSaleLines={saveSaleLines}
+              saveSaleDetails={saveSaleDetails}
               changeSaleDeliveryStatus={changeSaleDeliveryStatus}
               createManualSale={createManualSale}
               archiveSale={archiveSale}
@@ -1392,7 +1453,7 @@ export function App() {
       </AppLayout>
       {balanceModalOpen && (
         <BalanceAdjustmentModal
-          adjustments={sellerBalanceAdjustments}
+          adjustments={balanceHistoryEntries}
           onClose={() => setBalanceModalOpen(false)}
           onSave={async (input) => {
             await addBalanceAdjustment(input);
@@ -1525,6 +1586,7 @@ function mapSupabaseSale(row: {
   archived_at?: string | null;
   manual?: boolean | null;
   status_changed_at?: string | null;
+  total_ars?: number | null;
   created_at: string;
   sale_lines?: Array<{
     id: string;
@@ -1545,6 +1607,19 @@ function mapSupabaseSale(row: {
     paid_at: string;
   }>;
 }): Sale {
+  const lines = (row.sale_lines ?? []).map((line) => ({
+    itemType: line.item_type === "product" ? "product" : "card",
+    itemId: line.stock_product_id ?? line.stock_card_id ?? line.id,
+    sellerId: row.seller_id,
+    label: line.product_name ?? `Carta ${line.card_number ?? ""} - ${line.variant_type ?? ""} ${line.color_variant ?? ""}`.trim(),
+    unitPrice: line.unit_price_ars,
+    finalUnitPrice: line.unit_price_ars,
+    quantity: line.quantity,
+    maxQuantity: Math.max(1, line.quantity),
+  })) as SaleLine[];
+  const itemTotal = lines.reduce((sum, line) => sum + line.finalUnitPrice * line.quantity, 0);
+  const totalOverride = row.total_ars !== null && row.total_ars !== undefined && row.total_ars !== itemTotal ? row.total_ars : undefined;
+
   return {
     id: row.id,
     orderNumber: `DBSM-${row.id.slice(0, 8).toUpperCase()}`,
@@ -1559,17 +1634,9 @@ function mapSupabaseSale(row: {
     statusChangedAt: row.status_changed_at?.slice(0, 10) ?? row.created_at.slice(0, 10),
     archivedAt: row.archived_at ?? undefined,
     manual: row.manual ?? false,
+    totalOverride,
     shippingPending: fromSupabaseStatus(row.status) !== "confirmada",
-    lines: (row.sale_lines ?? []).map((line) => ({
-      itemType: line.item_type === "product" ? "product" : "card",
-      itemId: line.stock_product_id ?? line.stock_card_id ?? line.id,
-      sellerId: row.seller_id,
-      label: line.product_name ?? `Carta ${line.card_number ?? ""} - ${line.variant_type ?? ""} ${line.color_variant ?? ""}`.trim(),
-      unitPrice: line.unit_price_ars,
-      finalUnitPrice: line.unit_price_ars,
-      quantity: line.quantity,
-      maxQuantity: Math.max(1, line.quantity),
-    })),
+    lines,
     payments: (row.payments ?? []).map((payment) => ({
       id: payment.id,
       amount: payment.amount_ars,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Archive, Boxes, CircleDollarSign, Plus, Save, Trash2, WalletCards, X } from "lucide-react";
 import type { CardStock, DeliveryStatus, Product, Sale, SaleLine, SaleStatus } from "../lib/types";
-import { availableProductQuantity, availableQuantity, formatMoney, kindLabel, paidTotal, statusLabel } from "../lib/helpers";
+import { availableProductQuantity, availableQuantity, formatMoney, kindLabel, paidTotal, saleItemsTotal, statusLabel } from "../lib/helpers";
 import { variantDisplayLabel } from "../data/cromerosCatalog";
 import { sortCardStock } from "../lib/sorting";
 import { Metric } from "../components/shared/Metric";
@@ -14,6 +14,13 @@ const deliveryLabels: Record<DeliveryStatus, string> = {
   delivered: "Entregado",
 };
 const deliveryStatuses: DeliveryStatus[] = ["delivery_pending", "shipped", "delivered"];
+type SaleDetailDraft = {
+  customerName: string;
+  customerWhatsapp: string;
+  note: string;
+  paymentAmount: number;
+  totalOverride: string;
+};
 
 export function SalesPage({
   sales,
@@ -22,6 +29,7 @@ export function SalesPage({
   changeSaleStatus,
   changeSaleDeliveryStatus,
   saveSaleLines,
+  saveSaleDetails,
   createManualSale,
   archiveSale,
   deleteSale,
@@ -33,11 +41,13 @@ export function SalesPage({
   changeSaleDeliveryStatus: (saleId: string, status?: DeliveryStatus) => Promise<void> | void;
   updateSaleLine: (saleId: string, lineIndex: number, quantity: number, price: number) => void;
   saveSaleLines: (saleId: string, lines: SaleLine[]) => Promise<void> | void;
+  saveSaleDetails: (saleId: string, patch: Pick<Sale, "customerName" | "customerWhatsapp" | "note" | "payments"> & { totalOverride?: number; lines?: SaleLine[] }) => Promise<boolean> | boolean;
   createManualSale: (input: { customerName: string; customerWhatsapp?: string; note?: string; date: string; lines: SaleLine[] }) => Promise<boolean> | boolean;
   archiveSale: (saleId: string) => Promise<void> | void;
   deleteSale: (saleId: string) => Promise<void> | void;
 }) {
   const [draftLines, setDraftLines] = useState<Record<string, SaleLine[]>>({});
+  const [draftDetails, setDraftDetails] = useState<Record<string, SaleDetailDraft>>({});
   const [view, setView] = useState<"active" | "archived">("active");
   const [page, setPage] = useState(1);
   const [savingSaleIds, setSavingSaleIds] = useState<string[]>([]);
@@ -60,6 +70,24 @@ export function SalesPage({
       const next = { ...current };
       sales.forEach((sale) => {
         if (!next[sale.id]) next[sale.id] = sale.lines.map((line) => ({ ...line }));
+      });
+      Object.keys(next).forEach((saleId) => {
+        if (!sales.some((sale) => sale.id === saleId)) delete next[saleId];
+      });
+      return next;
+    });
+    setDraftDetails((current) => {
+      const next = { ...current };
+      sales.forEach((sale) => {
+        if (!next[sale.id]) {
+          next[sale.id] = {
+            customerName: sale.customerName,
+            customerWhatsapp: sale.customerWhatsapp ?? "",
+            note: sale.note ?? "",
+            paymentAmount: paidTotal(sale),
+            totalOverride: sale.totalOverride === undefined ? "" : String(sale.totalOverride),
+          };
+        }
       });
       Object.keys(next).forEach((saleId) => {
         if (!sales.some((sale) => sale.id === saleId)) delete next[saleId];
@@ -143,6 +171,14 @@ export function SalesPage({
     }));
   }
 
+  function updateDraftDetails(saleId: string, patch: Partial<SaleDetailDraft>) {
+    setFeedback("");
+    setDraftDetails((current) => ({
+      ...current,
+      [saleId]: { ...current[saleId], ...patch } as SaleDetailDraft,
+    }));
+  }
+
   async function submitManualSale() {
     if (!manualLines.length) return;
     setSavingManualSale(true);
@@ -169,6 +205,28 @@ export function SalesPage({
     setFeedback("");
     setSavingSaleIds((current) => Array.from(new Set([...current, saleId])));
     await saveSaleLines(saleId, lines);
+    const sale = sales.find((item) => item.id === saleId);
+    const details = draftDetails[saleId];
+    if (sale && details) {
+      const paymentAmount = Math.max(0, Number(details.paymentAmount) || 0);
+      const payment = sale.payments[0];
+      const totalOverride = details.totalOverride === "" ? undefined : Math.max(0, Number(details.totalOverride) || 0);
+      await saveSaleDetails(saleId, {
+        customerName: details.customerName,
+        customerWhatsapp: details.customerWhatsapp,
+        note: details.note,
+        totalOverride,
+        lines,
+        payments: paymentAmount > 0
+          ? [{
+            id: payment?.id ?? crypto.randomUUID(),
+            amount: paymentAmount,
+            note: sale.status === "reservada" ? "Seña / reserva" : "Pago registrado",
+            date: payment?.date ?? new Date().toISOString().slice(0, 10),
+          }]
+          : [],
+      });
+    }
     setSavingSaleIds((current) => current.filter((id) => id !== saleId));
     setFeedback("Cambios guardados.");
   }
@@ -261,16 +319,24 @@ export function SalesPage({
       </div>
       {pagedSales.map((sale) => {
         const lines = draftLines[sale.id] ?? sale.lines;
-        const total = lines.reduce((sum, line) => sum + line.finalUnitPrice * line.quantity, 0);
-        const paid = paidTotal(sale);
+        const details = draftDetails[sale.id] ?? {
+          customerName: sale.customerName,
+          customerWhatsapp: sale.customerWhatsapp ?? "",
+          note: sale.note ?? "",
+          paymentAmount: paidTotal(sale),
+          totalOverride: sale.totalOverride === undefined ? "" : String(sale.totalOverride),
+        };
+        const itemsTotal = saleItemsTotal({ lines });
+        const total = details.totalOverride === "" ? itemsTotal : Math.max(0, Number(details.totalOverride) || 0);
+        const paid = Math.max(0, Number(details.paymentAmount) || 0);
         const isSavingSale = savingSaleIds.includes(sale.id);
         return (
           <article key={sale.id} className="tool-surface">
             <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
               <div>
                 <p className="eyebrow">{sale.orderNumber}{sale.manual ? " · Manual" : ""}{sale.archivedAt ? ` · Archivado ${sale.archivedAt}` : ""}</p>
-                <h3 className="panel-title">{sale.customerName}</h3>
-                <p className="mt-1 text-sm text-[var(--muted)]">{sale.note || "Sin notas"}</p>
+                <h3 className="panel-title">{details.customerName || "Cliente sin nombre"}</h3>
+                <p className="mt-1 text-sm text-[var(--muted)]">{details.note || "Sin notas"}</p>
               </div>
               <div className="status-group">
                 {(["pendiente", "reservada", "confirmada", "cancelada"] as SaleStatus[]).map((status) => (
@@ -282,6 +348,15 @@ export function SalesPage({
                 {(sale.archivedAt || sale.status === "cancelada") && <button className="danger-button compact" onClick={() => deleteSale(sale.id)} disabled={isSavingSale}><Trash2 size={16} />Borrar</button>}
                 <button className="primary-button compact" onClick={() => void save(sale.id)} disabled={isSavingSale}><Save size={16} />{isSavingSale ? "Guardando..." : "Guardar cambios"}</button>
               </div>
+            </div>
+
+            <div className="sale-detail-grid mt-4">
+              <label className="field"><span>Cliente</span><input value={details.customerName} onChange={(event) => updateDraftDetails(sale.id, { customerName: event.target.value })} /></label>
+              <label className="field"><span>WhatsApp</span><input value={details.customerWhatsapp} onChange={(event) => updateDraftDetails(sale.id, { customerWhatsapp: event.target.value })} /></label>
+              <label className="field sale-detail-note"><span>Notas</span><input value={details.note} onChange={(event) => updateDraftDetails(sale.id, { note: event.target.value })} /></label>
+              <label className="field"><span>{sale.status === "reservada" ? "Monto reservado" : "Pago registrado"}</span><input type="number" min={0} value={details.paymentAmount} onChange={(event) => updateDraftDetails(sale.id, { paymentAmount: Math.max(0, Number(event.target.value)) })} /></label>
+              <label className="field"><span>Total final manual</span><input type="number" min={0} placeholder={String(itemsTotal)} value={details.totalOverride} onChange={(event) => updateDraftDetails(sale.id, { totalOverride: event.target.value })} /></label>
+              <p className="field-hint sale-detail-hint">Dejá el total vacío para usar el total por ítems: {formatMoney(itemsTotal)}.</p>
             </div>
 
             <div className="sale-add-grid mt-4">
@@ -341,7 +416,7 @@ export function SalesPage({
             <div className="mt-5 grid gap-3 border-t border-[var(--line)] pt-4 md:grid-cols-3">
               <Metric icon={CircleDollarSign} label="Total venta" value={formatMoney(total)} />
               <Metric icon={WalletCards} label="Pago" value={formatMoney(paid)} />
-              <Metric icon={Boxes} label="Saldo" value={formatMoney(Math.max(0, total - paid))} />
+              <Metric icon={Boxes} label="Saldo pendiente" value={formatMoney(Math.max(0, total - paid))} />
             </div>
             <p className="mt-3 text-xs text-[var(--muted)]">
               Stock aplicado: {sale.stockApplied ? "sí" : "no"}. Al guardar una venta reservada o confirmada, el stock se recalcula.

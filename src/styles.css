@@ -1673,6 +1673,18 @@ textarea.input {
   gap: 0.75rem;
 }
 
+.sale-detail-grid {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.sale-detail-note,
+.sale-detail-hint {
+  grid-column: 1 / -1;
+}
+
 .publish-price-grid {
   display: grid;
   gap: 0.75rem;
@@ -1695,6 +1707,10 @@ textarea.input {
   .manual-sale-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: end;
+  }
+
+  .sale-detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .manual-note {

@@ -142,6 +142,7 @@ export type Sale = {
   statusChangedAt?: string;
   archivedAt?: string;
   manual?: boolean;
+  totalOverride?: number;
   lines: SaleLine[];
   payments: Payment[];
   shippingPending: boolean;

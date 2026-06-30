@@ -66,6 +66,11 @@ export function availableProductQuantity(item: Product) {
 }
 
 export function saleTotal(sale: Sale) {
+  if (sale.totalOverride !== undefined) return Math.max(0, sale.totalOverride);
+  return saleItemsTotal(sale);
+}
+
+export function saleItemsTotal(sale: Pick<Sale, "lines">) {
   return sale.lines.reduce((sum, line) => sum + line.finalUnitPrice * line.quantity, 0);
 }
 
