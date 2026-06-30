@@ -927,8 +927,69 @@ export function App() {
     }
     const ok = window.confirm("Esto borra el pedido definitivamente. No se puede deshacer.");
     if (!ok) return;
+
+    const inventory = sale.status === "cancelada"
+      ? { nextStock: stock, nextProducts: products, ok: true }
+      : applySaleInventoryTransition(stock, products, sale, sale.status, "cancelada");
+
+    if (!inventory.ok) {
+      notify("error", "No pude liberar el stock de este pedido antes de borrarlo.");
+      return;
+    }
+
+    if (supabase) {
+      const { error: rpcError } = await supabase.rpc("delete_sale", { p_sale_id: saleId });
+      if (!rpcError) {
+        await loadSellerInventoryFromSupabase(currentSeller.id);
+        await loadSellerSalesFromSupabase(currentSeller.id);
+        notify("success", "Pedido borrado.");
+        return;
+      }
+
+      let releasedStock = false;
+      if (sale.status !== "cancelada") {
+        const { error: statusError } = await supabase.rpc("set_sale_status", {
+          p_sale_id: saleId,
+          p_status: "cancelled",
+        });
+        if (statusError) {
+          notify("error", "No pude cancelar el pedido para liberar stock antes de borrarlo.");
+          return;
+        }
+        releasedStock = true;
+      }
+
+      const { error: linesError } = await supabase
+        .from("sale_lines")
+        .delete()
+        .eq("sale_id", saleId)
+        .eq("seller_id", currentSeller.id);
+      const { error: saleError } = linesError
+        ? { error: linesError }
+        : await supabase
+          .from("sales")
+          .delete()
+          .eq("id", saleId)
+          .eq("seller_id", currentSeller.id);
+
+      if (saleError) {
+        if (releasedStock) {
+          await loadSellerInventoryFromSupabase(currentSeller.id);
+          await loadSellerSalesFromSupabase(currentSeller.id);
+        }
+        notify("error", "Supabase rechazó el borrado. Corré el SQL delete_sale_v1 y probá de nuevo.");
+        return;
+      }
+
+      await loadSellerInventoryFromSupabase(currentSeller.id);
+      await loadSellerSalesFromSupabase(currentSeller.id);
+      notify("success", "Pedido borrado.");
+      return;
+    }
+
+    setStock(inventory.nextStock);
+    setProducts(inventory.nextProducts);
     setSales((current) => current.filter((item) => item.id !== saleId));
-    if (supabase) await supabase.from("sales").delete().eq("id", saleId);
     notify("success", "Pedido borrado.");
   }
 
